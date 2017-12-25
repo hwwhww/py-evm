@@ -75,7 +75,6 @@ class FrontierBlock(BaseBlock):
     #
     # Receipts API
     #
-    @property
     def get_receipts(self, chaindb):
         return chaindb.get_receipts(self.header, Receipt)
 

@@ -248,13 +248,13 @@ class VM(object):
     #
     # Gas Usage API
     #
-    def get_cumulative_gas_used(self):
+    def get_cumulative_gas_used(self, block):
         """
         Note return value of this function can be cached based on
         `self.receipt_db.root_hash`
         """
-        if len(self.block.transactions):
-            return self.block.get_receipts(self.chaindb)[-1].gas_used
+        if len(block.transactions):
+            return block.get_receipts(self.chaindb)[-1].gas_used
         else:
             return 0
 
