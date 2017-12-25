@@ -37,12 +37,6 @@ class BaseBlock(rlp.Serializable):
         """
         raise NotImplementedError("Must be implemented by subclasses")
 
-    def get_parent_header(self):
-        """
-        Returns the header for the parent block.
-        """
-        raise NotImplementedError("Must be implemented by subclasses")
-
     @property
     def hash(self):
         raise NotImplementedError("Must be implemented by subclasses")
@@ -54,15 +48,6 @@ class BaseBlock(rlp.Serializable):
     @property
     def is_genesis(self):
         return self.number == 0
-
-    def validate(self):
-        pass
-
-    def mine(self, *args, **kwargs):
-        """
-        Mines the block.
-        """
-        raise NotImplementedError("Must be implemented by subclasses")
 
     def __repr__(self):
         return '<{class_name}(#{b})>'.format(

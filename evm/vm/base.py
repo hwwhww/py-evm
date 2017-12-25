@@ -76,8 +76,8 @@ class VM(object):
 
         self.block.transactions.append(transaction)
 
-        tx_root_hash = self.block.chaindb.add_transaction(self.block.header, index_key, transaction)
-        receipt_root_hash = self.block.chaindb.add_receipt(self.block.header, index_key, receipt)
+        tx_root_hash = self.chaindb.add_transaction(self.block.header, index_key, transaction)
+        receipt_root_hash = self.chaindb.add_receipt(self.block.header, index_key, receipt)
 
         self.block.bloom_filter |= receipt.bloom
 
@@ -150,7 +150,7 @@ class VM(object):
         See example with FrontierBlock. :meth:`~evm.vm.forks.frontier.blocks.FrontierBlock.mine`
         """
         block = self.block
-        block.mine(*args, **kwargs)
+        self.pack_block(block, *args, **kwargs)
 
         if block.number == 0:
             return block
@@ -177,6 +177,12 @@ class VM(object):
                 )
 
         return block
+
+    def pack_block(self, block, *args, **kwargs):
+        """
+        Pack block for mining.
+        """
+        raise NotImplementedError("Must be implemented by subclasses")
 
     #
     # Transactions
@@ -208,7 +214,6 @@ class VM(object):
     #
     # Blocks
     #
-
     @classmethod
     def get_block_class(cls):
         """
@@ -221,6 +226,37 @@ class VM(object):
 
     def get_block_by_header(self, block_header):
         return self.get_block_class().from_header(block_header, self.chaindb)
+
+    def get_parent_header(self, block_header):
+        """
+        Returns the header for the parent block.
+        """
+        return self.chaindb.get_block_header_by_hash(block_header.parent_hash)
+
+    def validate_block(self, block):
+        """
+        Validate the block.
+        """
+        raise NotImplementedError("Must be implemented by subclasses")
+
+    def validate_uncle(self, block, uncle):
+        """
+        Validate the uncle.
+        """
+        raise NotImplementedError("Must be implemented by subclasses")
+
+    #
+    # Gas Usage API
+    #
+    def get_cumulative_gas_used(self):
+        """
+        Note return value of this function can be cached based on
+        `self.receipt_db.root_hash`
+        """
+        if len(self.block.transactions):
+            return self.block.get_receipts(self.chaindb)[-1].gas_used
+        else:
+            return 0
 
     #
     # Headers
