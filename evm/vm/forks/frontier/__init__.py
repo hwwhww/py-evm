@@ -8,7 +8,12 @@ from evm.exceptions import (
     ContractCreationCollision,
 )
 from evm import precompiles
-
+from evm.rlp.logs import (
+    Log,
+)
+from evm.rlp.receipts import (
+    Receipt,
+)
 from evm.vm.message import (
     Message,
 )
@@ -183,6 +188,32 @@ def _execute_frontier_transaction(vm, transaction):
     return computation
 
 
+def _make_frontier_receipt(vm, transaction, computation):
+    logs = [
+        Log(address, topics, data)
+        for address, topics, data
+        in computation.get_log_entries()
+    ]
+
+    gas_remaining = computation.get_gas_remaining()
+    gas_refund = computation.get_gas_refund()
+    tx_gas_used = (
+        transaction.gas - gas_remaining
+    ) - min(
+        gas_refund,
+        (transaction.gas - gas_remaining) // 2,
+    )
+
+    gas_used = vm.block.header.gas_used + tx_gas_used
+
+    receipt = Receipt(
+        state_root=vm.block.header.state_root,
+        gas_used=gas_used,
+        logs=logs,
+    )
+    return receipt
+
+
 FrontierVM = VM.configure(
     name='FrontierVM',
     # VM logic
@@ -198,4 +229,5 @@ FrontierVM = VM.configure(
     validate_transaction=validate_frontier_transaction,
     # transactions and vm messages
     execute_transaction=_execute_frontier_transaction,
+    make_receipt=_make_frontier_receipt,
 )

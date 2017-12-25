@@ -64,18 +64,49 @@ class VM(object):
     #
     # Execution
     #
+    def add_transaction(self, transaction, computation):
+        """
+        Add a transaction to the given block.
+        """
+        receipt = self.make_receipt(transaction, computation)
+
+        transaction_idx = len(self.block.transactions)
+
+        index_key = rlp.encode(transaction_idx, sedes=rlp.sedes.big_endian_int)
+
+        self.block.transactions.append(transaction)
+
+        tx_root_hash = self.block.chaindb.add_transaction(self.block.header, index_key, transaction)
+        receipt_root_hash = self.block.chaindb.add_receipt(self.block.header, index_key, receipt)
+
+        self.block.bloom_filter |= receipt.bloom
+
+        self.block.header.transaction_root = tx_root_hash
+        self.block.header.receipt_root = receipt_root_hash
+        self.block.header.bloom = int(self.block.bloom_filter)
+        self.block.header.gas_used = receipt.gas_used
+
+        # Return `self.block`, not `block`
+        return self.block
+
     def apply_transaction(self, transaction):
         """
         Apply the transaction to the vm in the current block.
         """
         computation = self.execute_transaction(transaction)
         self.clear_journal()
-        self.block.add_transaction(transaction, computation)
+        self.add_transaction(transaction, computation)
         return computation
 
     def execute_transaction(self, transaction):
         """
         Execute the transaction in the vm.
+        """
+        raise NotImplementedError("Must be implemented by subclasses")
+
+    def make_receipt(self, transaction, computation):
+        """
+        Make receipt.
         """
         raise NotImplementedError("Must be implemented by subclasses")
 
