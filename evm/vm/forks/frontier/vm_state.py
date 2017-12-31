@@ -256,7 +256,7 @@ class FrontierVMState(BaseVMState):
         for uncle in block.uncles:
             self.validate_uncle(block, uncle)
 
-        if not self.chaindb.exists(block.header.state_root):
+        if not self.is_key_exsits(block.header.state_root):
             raise ValidationError(
                 "`state_root` was not found in the db.\n"
                 "- state_root: {0}".format(
@@ -297,7 +297,7 @@ class FrontierVMState(BaseVMState):
                 "Uncle number ({0}) is higher than block number ({1})".format(
                     uncle.block_number, block.number))
         try:
-            parent_header = self.chaindb.get_block_header_by_hash(uncle.parent_hash)
+            parent_header = self.get_block_header_by_hash(uncle.parent_hash)
         except BlockNotFound:
             raise ValidationError(
                 "Uncle ancestor not found: {0}".format(uncle.parent_hash))
