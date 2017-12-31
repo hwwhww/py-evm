@@ -3,12 +3,12 @@ import logging
 
 
 class BaseVMState(object):
-    chaindb = None
+    _chaindb = None
     block_header = None
     computation_class = None
 
     def __init__(self, chaindb, block_header, computation_class):
-        self.chaindb = chaindb
+        self._chaindb = chaindb
         self.block_header = block_header
         self.computation_class = computation_class
 
@@ -51,7 +51,7 @@ class BaseVMState(object):
     #
     @contextmanager
     def state_db(self, read_only=False):
-        state = self.chaindb.get_state_db(self.block_header.state_root, read_only)
+        state = self._chaindb.get_state_db(self.block_header.state_root, read_only)
         yield state
 
         if read_only:
@@ -77,7 +77,7 @@ class BaseVMState(object):
         Snapshots are a combination of the state_root at the time of the
         snapshot and the checkpoint_id returned from the journaled DB.
         """
-        return (self.block_header.state_root, self.chaindb.snapshot())
+        return (self.block_header.state_root, self._chaindb.snapshot())
 
     def revert(self, snapshot):
         """
@@ -90,7 +90,7 @@ class BaseVMState(object):
             state_db.root_hash = state_root
             # now roll the underlying database back
 
-        self.chaindb.revert(checkpoint_id)
+        self._chaindb.revert(checkpoint_id)
 
     def commit(self, snapshot):
         """
@@ -98,10 +98,10 @@ class BaseVMState(object):
         will destroy any journal checkpoints *after* the snapshot checkpoint.
         """
         _, checkpoint_id = snapshot
-        self.chaindb.commit(checkpoint_id)
+        self._chaindb.commit(checkpoint_id)
 
     #
-    # Access ChainDB
+    # Access ChainDB (Read-only)
     #
     def get_ancestor_hash(self, block_number):
         """
@@ -110,16 +110,28 @@ class BaseVMState(object):
         ancestor_depth = self.block_header.block_number - block_number
         if ancestor_depth > 256 or ancestor_depth < 1:
             return b''
-        header = self.chaindb.get_block_header_by_hash(self.block_header.parent_hash)
+        header = self._chaindb.get_block_header_by_hash(self.block_header.parent_hash)
         while header.block_number != block_number:
-            header = self.chaindb.get_block_header_by_hash(header.parent_hash)
+            header = self._chaindb.get_block_header_by_hash(header.parent_hash)
         return header.hash
+
+    def get_block_header_by_hash(self, block_hash):
+        """
+        Returns the block header by hash.
+        """
+        return self._chaindb.get_block_header_by_hash(block_hash)
 
     def get_parent_header(self, block_header):
         """
         Returns the header for the parent block.
         """
-        return self.chaindb.get_block_header_by_hash(block_header.parent_hash)
+        return self.get_block_header_by_hash(block_header.parent_hash)
+
+    def is_key_exsits(self, key):
+        """
+        Check if the given key exsits in chaindb
+        """
+        return self._chaindb.exists(key)
 
     #
     # Computation
