@@ -2,13 +2,15 @@ from contextlib import contextmanager
 import logging
 
 
-class VMState(object):
+class BaseVMState(object):
     chaindb = None
     block_header = None
+    computation_class = None
 
-    def __init__(self, chaindb, block_header):
+    def __init__(self, chaindb, block_header, computation_class):
         self.chaindb = chaindb
         self.block_header = block_header
+        self.computation_class = computation_class
 
     #
     # Logging
@@ -99,7 +101,7 @@ class VMState(object):
         self.chaindb.commit(checkpoint_id)
 
     #
-    # Block Header
+    # Access ChainDB
     #
     def get_ancestor_hash(self, block_number):
         """
@@ -112,6 +114,51 @@ class VMState(object):
         while header.block_number != block_number:
             header = self.chaindb.get_block_header_by_hash(header.parent_hash)
         return header.hash
+
+    def get_parent_header(self, block_header):
+        """
+        Returns the header for the parent block.
+        """
+        return self.chaindb.get_block_header_by_hash(block_header.parent_hash)
+
+    #
+    # Computation
+    #
+    def get_computation(self, message):
+        """Return state object
+        """
+        computation = self.computation_class()(
+            self,
+            message,
+        )
+        return computation
+
+    #
+    # Execution
+    #
+    def execute_transaction(self, transaction):
+        """
+        Execute the transaction in the vm.
+        """
+        raise NotImplementedError("Must be implemented by subclasses")
+
+    def make_receipt(self, transaction, computation):
+        """
+        Make receipt.
+        """
+        raise NotImplementedError("Must be implemented by subclasses")
+
+    def validate_block(self, block):
+        """
+        Validate the block.
+        """
+        raise NotImplementedError("Must be implemented by subclasses")
+
+    def validate_uncle(self, block, uncle):
+        """
+        Validate the uncle.
+        """
+        raise NotImplementedError("Must be implemented by subclasses")
 
     #
     # classmethod
