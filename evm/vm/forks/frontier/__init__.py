@@ -23,4 +23,6 @@ FrontierVM = VM.configure(
     configure_header=configure_frontier_header,
     # validation
     validate_transaction=validate_frontier_transaction,
+    # mode
+    _is_stateless=True,
 )
