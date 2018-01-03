@@ -287,7 +287,6 @@ class VM(object):
         vm_state = cls.get_state_class()(
             chaindb=BaseChainDB({}),
             block_header=block_header,
-            is_stateless=True,
         )
 
         witness = {}
@@ -439,7 +438,6 @@ class VM(object):
         return self.get_state_class()(
             chaindb,
             block_header,
-            self.is_stateless,
         )
 
     @property

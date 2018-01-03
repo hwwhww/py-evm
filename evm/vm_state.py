@@ -16,14 +16,12 @@ class BaseVMState(object):
     _chaindb = None
     block_header = None
     computation_class = None
-    is_stateless = None
     access_logs = AccessLogs()
     receipts = None
 
-    def __init__(self, chaindb, block_header, is_stateless):
+    def __init__(self, chaindb, block_header):
         self._chaindb = chaindb
         self.block_header = block_header
-        self.is_stateless = is_stateless
 
         self.receipts = []
 
