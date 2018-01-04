@@ -2,6 +2,9 @@ from contextlib import contextmanager
 import copy
 import logging
 
+from cytoolz import (
+    merge,
+)
 import rlp
 from trie import (
     Trie,
@@ -16,13 +19,14 @@ class BaseVMState(object):
     _chaindb = None
     block_header = None
     computation_class = None
-    access_logs = AccessLogs()
+    access_logs = None
     receipts = None
 
     def __init__(self, chaindb, block_header):
         self._chaindb = chaindb
         self.block_header = block_header
 
+        self.access_logs = AccessLogs()
         self.receipts = []
 
     #
@@ -149,7 +153,7 @@ class BaseVMState(object):
         """
         return self.get_block_header_by_hash(block_header.parent_hash)
 
-    def is_key_exsits(self, key):
+    def is_key_exists(self, key):
         """
         Check if the given key exsits in chaindb
         """
@@ -161,10 +165,10 @@ class BaseVMState(object):
     def get_computation(self, message):
         """Return state object
         """
-        if self.computation_class is not None:
-            computation = self.computation_class(self, message)
-        else:
+        if self.computation_class is None:
             raise AttributeError("No `computation_class` has been set for this VMState")
+        else:
+            computation = self.computation_class(self, message)
         return computation
 
     #
@@ -228,9 +232,7 @@ class BaseVMState(object):
             receipt,
             block.db,
         )
-        trie_data = {}
-        trie_data.update(tx_db.wrapped_db.kv_store)
-        trie_data.update(receipt_db.wrapped_db.kv_store)
+        trie_data = merge(tx_db.wrapped_db.kv_store, receipt_db.wrapped_db.kv_store)
 
         block.bloom_filter |= receipt.bloom
 
