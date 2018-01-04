@@ -73,7 +73,6 @@ def compute_gas_limit(parent_header, gas_limit_floor):
 
 def generate_header_from_prev_state(
         compute_difficulty,
-        state_root,
         parent_header,
         timestamp,
         coinbase=b'\x35' * 20,
@@ -90,7 +89,7 @@ def generate_header_from_prev_state(
         ),
         timestamp=max(timestamp, parent_header.timestamp + 1),
         parent_hash=parent_header.hash,
-        state_root=state_root,
+        state_root=parent_header.state_root,
         coinbase=coinbase,
         extra_data=extra_data,
     )
