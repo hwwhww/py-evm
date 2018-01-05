@@ -21,7 +21,7 @@ from evm.utils.keccak import (
     keccak,
 )
 from evm.utils.headers import (
-    generate_header_from_prev_state,
+    generate_header_from_parent_header,
 )
 
 
@@ -277,7 +277,7 @@ class VM(object):
         parent_header = prev_headers[0]
 
         # Generate block header object
-        block_header = generate_header_from_prev_state(
+        block_header = generate_header_from_parent_header(
             cls.compute_difficulty,
             parent_header,
             parent_header.timestamp + 1,
@@ -385,14 +385,12 @@ class VM(object):
         if last_block_hash == GENESIS_PARENT_HASH:
             return prev_headers
 
-        last_block_header = cls.get_block_header_by_hash(last_block_hash, db)
-        block = cls.get_block_by_header(last_block_header, db)
+        block_header = cls.get_block_header_by_hash(last_block_hash, db)
 
         for _ in range(MAX_PREV_HEADER_DEPTH):
-            prev_headers.append(block.header)
+            prev_headers.append(block_header)
             try:
-                prev_block_header = cls.get_parent_header(block.header, db)
-                block = cls.get_block_by_header(prev_block_header, db)
+                block_header = cls.get_parent_header(block_header, db)
             except (IndexError, BlockNotFound):
                 break
         return prev_headers

@@ -71,7 +71,7 @@ def compute_gas_limit(parent_header, gas_limit_floor):
         return gas_limit
 
 
-def generate_header_from_prev_state(
+def generate_header_from_parent_header(
         compute_difficulty,
         parent_header,
         timestamp,
