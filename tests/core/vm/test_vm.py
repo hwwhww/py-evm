@@ -6,6 +6,9 @@ import pytest
 from evm import constants
 from evm.db.backends.memory import MemoryDB
 from evm.db.chain import BaseChainDB
+from evm.utils.db import (
+    get_parent_header,
+)
 
 from tests.core.fixtures import chain_without_block_validation  # noqa: F401
 from tests.core.helpers import new_transaction
@@ -147,16 +150,18 @@ def test_create_block(chain_without_block_validation):  # noqa: F811
         (tx1, transaction_witness1),
         (tx2, transaction_witness2),
     ]
-    prev_headers = vm2.get_prev_headers(
+    prev_hashes = vm2.get_prev_hashes(
         last_block_hash=block0.hash,
         db=vm2.chaindb,
     )
+    parent_header = block0.header
 
     # Create a block
     block2 = vm2.create_block(
         transaction_packages=transaction_packages,
-        prev_headers=prev_headers,
+        prev_hashes=prev_hashes,
         coinbase=coinbase,
+        parent_header=parent_header,
     )
 
     # Check the block

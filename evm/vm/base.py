@@ -245,13 +245,12 @@ class VM(object):
     def create_block(
             cls,
             transaction_packages,
-            prev_headers,
-            coinbase):
+            prev_hashes,
+            coinbase,
+            parent_header):
         """
         Create a block with transaction witness
         """
-        parent_header = prev_headers[0]
-
         block = cls.generate_block_from_parent_header_and_coinbase(
             parent_header,
             coinbase,
@@ -266,7 +265,7 @@ class VM(object):
             vm_state = cls.get_state_class()(
                 chaindb=witness_db,
                 block_header=block.header,
-                prev_headers=prev_headers,
+                prev_hashes=prev_hashes,
                 receipts=receipts,
             )
             computation, result_block, _ = vm_state.apply_transaction(
@@ -287,7 +286,7 @@ class VM(object):
         vm_state = cls.get_state_class()(
             chaindb=witness_db,
             block_header=block.header,
-            prev_headers=prev_headers,
+            prev_hashes=prev_hashes,
         )
         block = cls.finalize_block(vm_state, block)
 
@@ -345,7 +344,7 @@ class VM(object):
     #
     def validate_block(self, block):
         if not block.is_genesis:
-            parent_header = self.state.parent_header
+            parent_header = get_parent_header(block.header, self.chaindb)
 
             validate_gas_limit(block.header.gas_limit, parent_header.gas_limit)
             validate_length_lte(block.header.extra_data, 32, title="BlockHeader.extra_data")
@@ -467,21 +466,21 @@ class VM(object):
         return cls.get_block_class().from_header(block_header, db)
 
     @classmethod
-    def get_prev_headers(cls, last_block_hash, db):
-        prev_headers = []
+    def get_prev_hashes(cls, last_block_hash, db):
+        prev_hashes = []
 
         if last_block_hash == GENESIS_PARENT_HASH:
-            return prev_headers
+            return prev_hashes
 
         block_header = get_block_header_by_hash(last_block_hash, db)
 
         for _ in range(MAX_PREV_HEADER_DEPTH):
-            prev_headers.append(block_header)
+            prev_hashes.append(block_header.hash)
             try:
                 block_header = get_parent_header(block_header, db)
             except (IndexError, BlockNotFound):
                 break
-        return prev_headers
+        return prev_hashes
 
     #
     # Gas Usage API
@@ -555,7 +554,7 @@ class VM(object):
         if block_header is None:
             block_header = self.block.header
 
-        prev_headers = self.get_prev_headers(
+        prev_hashes = self.get_prev_hashes(
             last_block_hash=self.block.header.parent_hash,
             db=self.chaindb,
         )
@@ -563,7 +562,7 @@ class VM(object):
         return self.get_state_class()(
             chaindb,
             block_header,
-            prev_headers,
+            prev_hashes,
             receipts=receipts,
         )
 

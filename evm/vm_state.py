@@ -5,18 +5,12 @@ import logging
 from cytoolz import (
     merge,
 )
-from eth_utils import (
-    encode_hex,
-)
 
 from evm.constants import (
     MAX_PREV_HEADER_DEPTH,
 )
 from evm.db.tracked import (
     AccessLogs,
-)
-from evm.exceptions import (
-    BlockNotFound,
 )
 from evm.utils.state import (
     make_trie_root_and_nodes,
@@ -29,16 +23,16 @@ class BaseVMState(object):
     #
     _chaindb = None
     block_header = None
-    prev_headers = None
+    prev_hashes = None
 
     computation_class = None
     access_logs = None
     receipts = None
 
-    def __init__(self, chaindb, block_header, prev_headers, receipts=[]):
+    def __init__(self, chaindb, block_header, prev_hashes, receipts=[]):
         self._chaindb = chaindb
         self.block_header = block_header
-        self.prev_headers = prev_headers
+        self.prev_hashes = prev_hashes
 
         self.access_logs = AccessLogs()
         self.receipts = receipts
@@ -141,12 +135,8 @@ class BaseVMState(object):
         return self._chaindb.exists(key)
 
     #
-    # Access self.prev_headers (Read-only)
+    # Access self.prev_hashes (Read-only)
     #
-    @property
-    def parent_header(self):
-        return self.prev_headers[0]
-
     def get_ancestor_hash(self, block_number):
         """
         Return the hash of the ancestor with the given block number.
@@ -154,23 +144,10 @@ class BaseVMState(object):
         ancestor_depth = self.block_header.block_number - block_number - 1
         if (ancestor_depth >= MAX_PREV_HEADER_DEPTH or
                 ancestor_depth < 0 or
-                ancestor_depth >= len(self.prev_headers)):
+                ancestor_depth >= len(self.prev_hashes)):
             return b''
-        header = self.prev_headers[ancestor_depth]
-        return header.hash
-
-    def get_block_header_by_hash(self, block_hash):
-        """
-        Returns the block header by hash.
-        """
-        for value in self.prev_headers:
-            if value.hash == block_hash:
-                return value
-        raise BlockNotFound(
-            "No block header with hash {0} found in self.perv_headers".format(
-                encode_hex(block_hash),
-            )
-        )
+        ancestor_hash = self.prev_hashes[ancestor_depth]
+        return ancestor_hash
 
     #
     # Computation
