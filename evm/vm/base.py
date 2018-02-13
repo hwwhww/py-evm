@@ -8,6 +8,10 @@ from eth_utils import (
     to_tuple,
 )
 
+from trie import (
+    BinaryTrie,
+)
+
 from evm.constants import (
     GENESIS_PARENT_HASH,
     MAX_PREV_HEADER_DEPTH,
@@ -22,6 +26,11 @@ from evm.db.chain import BaseChainDB
 from evm.rlp.headers import (
     BlockHeader,
 )
+from evm.db.state import (
+    MainAccountStateDB,
+    ShardingAccountStateDB,
+)
+
 from evm.utils.datatypes import (
     Configurable,
 )
@@ -34,6 +43,10 @@ from evm.utils.headers import (
 )
 from evm.utils.keccak import (
     keccak,
+)
+from evm.utils.state import (
+    update_witness_db,
+    update_recent_trie_nodes_db,
 )
 from evm.validation import (
     validate_length_lte,
@@ -88,6 +101,94 @@ class BaseVM(Configurable):
         self.clear_journal()
 
         return computation, self.block
+
+    #
+    # Apply block
+    #
+    def apply_block_with_witness(self, block, witness, account_state_class=ShardingAccountStateDB):
+        self.configure_header(
+            coinbase=block.header.coinbase,
+            gas_limit=block.header.gas_limit,
+            timestamp=block.header.timestamp,
+            extra_data=block.header.extra_data,
+            mix_hash=block.header.mix_hash,
+            nonce=block.header.nonce,
+            uncles_hash=keccak(rlp.encode(block.uncles)),
+        )
+
+        recent_trie_nodes_db = dict([(keccak(value), value) for value in witness])
+        receipts = []
+        prev_hashes = self.previous_hashes
+
+        execution_context = ExecutionContext.from_block_header(block.header, prev_hashes)
+
+        # run all of the transactions.
+        for transaction in block.transactions:
+            witness_db = BaseChainDB(
+                MemoryDB(recent_trie_nodes_db),
+                account_state_class=account_state_class,
+                trie_class=BinaryTrie,
+            )
+
+            vm_state = self.get_state_class()(
+                chaindb=witness_db,
+                execution_context=execution_context,
+                state_root=self.block.header.state_root,
+                receipts=receipts,
+            )
+            computation, result_block, trie_data_dict = vm_state.apply_transaction(
+                transaction=transaction,
+                block=self.block,
+            )
+
+            if computation.is_success:
+                # block = result_block
+                self.block = result_block
+                receipts = computation.vm_state.receipts
+                recent_trie_nodes_db = update_recent_trie_nodes_db(
+                    recent_trie_nodes_db,
+                    computation.vm_state.access_logs.writes
+                )
+                self.chaindb.persist_trie_data_dict_to_db(trie_data_dict)
+
+            else:
+                pass
+
+        # transfer the list of uncles.
+        self.block.uncles = block.uncles
+
+        witness_db = BaseChainDB(
+            MemoryDB(recent_trie_nodes_db),
+            account_state_class=account_state_class,
+            trie_class=BinaryTrie,
+        )
+
+        return self.mine_block_stateless(witness_db, receipts)
+
+    def mine_block_stateless(self, witness_db, receipts, *args, **kwargs):
+        """
+        Mine the current block. Proxies to self.pack_block method.
+        """
+        block = self.block
+        self.pack_block(block, *args, **kwargs)
+
+        if block.number == 0:
+            return block
+
+        execution_context = ExecutionContext.from_block_header(
+            block.header,
+            self.previous_hashes
+        )
+
+        vm_state = self.get_state_class()(
+            chaindb=witness_db,
+            execution_context=execution_context,
+            state_root=block.header.state_root,
+            receipts=receipts,
+        )
+        block = vm_state.finalize_block(block)
+
+        return block
 
     #
     # Mining
@@ -180,23 +281,28 @@ class BaseVM(Configurable):
     @classmethod
     def create_block(
             cls,
-            transaction_packages,
+            witness_package,
             prev_hashes,
-            coinbase,
-            parent_header):
+            parent_header,
+            account_state_class=MainAccountStateDB):
         """
         Create a block with transaction witness
         """
         block = cls.generate_block_from_parent_header_and_coinbase(
             parent_header,
-            coinbase,
+            witness_package.coinbase,
         )
 
-        recent_trie_nodes = {}
+        recent_trie_nodes_db = {}
+        block_witness = set()
         receipts = []
+        transaction_packages = witness_package.transaction_packages
         for (transaction, transaction_witness) in transaction_packages:
-            transaction_witness.update(recent_trie_nodes)
-            witness_db = BaseChainDB(MemoryDB(transaction_witness))
+            witness_db = update_witness_db(
+                witness=transaction_witness,
+                recent_trie_nodes_db=recent_trie_nodes_db,
+                account_state_class=account_state_class,
+            )
 
             execution_context = ExecutionContext.from_block_header(block.header, prev_hashes)
             vm_state = cls.get_state_class()(
@@ -210,15 +316,26 @@ class BaseVM(Configurable):
                 block=block,
             )
 
-            if not computation.is_error:
+            if computation.is_success:
                 block = result_block
                 receipts = computation.vm_state.receipts
-                recent_trie_nodes.update(computation.vm_state.access_logs.writes)
+                recent_trie_nodes_db = update_recent_trie_nodes_db(
+                    recent_trie_nodes_db,
+                    computation.vm_state.access_logs.writes
+                )
+                block_witness.update(transaction_witness)
             else:
                 pass
 
         # Finalize
-        witness_db = BaseChainDB(MemoryDB(recent_trie_nodes))
+        # TODO get the witness of coinbase.
+        # For sharding, ignore uncles and nephews.
+        witness_db = update_witness_db(
+            witness=witness_package.coinbase_witness,
+            recent_trie_nodes_db=recent_trie_nodes_db,
+            account_state_class=account_state_class,
+        )
+
         execution_context = ExecutionContext.from_block_header(block.header, prev_hashes)
         vm_state = cls.get_state_class()(
             chaindb=witness_db,
@@ -227,8 +344,8 @@ class BaseVM(Configurable):
             receipts=receipts,
         )
         block = vm_state.finalize_block(block)
-
-        return block
+        block_witness.update(witness_package.coinbase_witness)
+        return block, block_witness
 
     @classmethod
     def generate_block_from_parent_header_and_coinbase(cls, parent_header, coinbase):

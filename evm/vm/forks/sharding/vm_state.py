@@ -47,7 +47,7 @@ class ShardingVMState(ByzantiumVMState):
     trie_class = BinaryTrie
 
     def execute_transaction(self, transaction):
-        # state_db ontext manager that restricts access as specified in the transacion
+        # state_db context manager that restricts access as specified in the transacion
         state_db_cm = functools.partial(self.state_db, access_list=transaction.prefix_list)
 
         #
@@ -220,7 +220,10 @@ class ShardingVMState(ByzantiumVMState):
         block.transaction_fee_sum += transaction_fee
 
         # Get trie roots and changed key-values.
-        tx_root_hash, tx_kv_nodes = make_trie_root_and_nodes(block.transactions)
+        tx_root_hash, tx_kv_nodes = make_trie_root_and_nodes(
+            block.transactions,
+            trie_class=BinaryTrie,
+        )
         receipt_root_hash, receipt_kv_nodes = make_trie_root_and_nodes(
             self.receipts,
             trie_class=BinaryTrie,
