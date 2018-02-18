@@ -39,7 +39,7 @@ from evm.db import (
     get_db_backend,
 )
 from evm.db.chain import (
-    BaseChainDB,
+    ChainDB,
 )
 from evm.db.state import (
     ShardingAccountStateDB,
@@ -158,7 +158,7 @@ def vm():
         receipt_root=EMPTY_SHA3,
         state_root=EMPTY_SHA3,
     )
-    chaindb = BaseChainDB(
+    chaindb = ChainDB(
         get_db_backend(),
         account_state_class=ShardingAccountStateDB,
         trie_class=BinaryTrie,
