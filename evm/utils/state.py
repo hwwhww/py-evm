@@ -1,4 +1,5 @@
 from cytoolz import (
+    curry,
     merge,
 )
 
@@ -69,5 +70,92 @@ def update_witness_db(witness, recent_trie_nodes_db, account_state_class, trie_c
     return witness_db
 
 
-def update_recent_trie_nodes_db(recent_trie_nodes_db, writes_log):
-    return merge(recent_trie_nodes_db, writes_log)
+def apply_state_transition_with_witness(
+        witness_db,
+        transaction,
+        block,
+        receipts,
+        state_class,
+        execution_context):
+
+    vm_state = state_class(
+        chaindb=witness_db,
+        execution_context=execution_context,
+        state_root=block.header.state_root,
+        receipts=receipts,
+    )
+    computation, block, trie_data_dict = vm_state.apply_transaction(
+        transaction=transaction,
+        block=block,
+    )
+    return computation, block, trie_data_dict
+
+
+@curry
+def apply_single_transaction(
+        transaction,
+        state_class,
+        account_state_class,
+        execution_context,
+        params):
+    current_block, receipts, recent_trie_nodes_db, recent_trie_data_dict = params
+    witness_db = ChainDB(
+        MemoryDB(recent_trie_nodes_db),
+        account_state_class=account_state_class,
+        trie_class=BinaryTrie,
+    )
+
+    computation, current_block, trie_data_dict = apply_state_transition_with_witness(
+        witness_db,
+        transaction,
+        current_block,
+        receipts,
+        state_class,
+        execution_context)
+
+    if computation.is_success:
+        return (
+            current_block,
+            computation.vm_state.receipts,
+            merge(recent_trie_nodes_db, computation.vm_state.access_logs.writes),
+            merge(trie_data_dict, recent_trie_data_dict)
+        )
+    else:
+        return current_block, receipts, recent_trie_nodes_db, recent_trie_data_dict
+
+
+@curry
+def apply_single_transaction_with_transaction_package(
+        transaction_package,
+        state_class,
+        account_state_class,
+        execution_context,
+        params):
+
+    current_block, receipts, recent_trie_nodes_db, recent_trie_data_dict, block_witness = params
+    transaction, transaction_witness = transaction_package
+    witness_db = update_witness_db(
+        witness=transaction_witness,
+        recent_trie_nodes_db=recent_trie_nodes_db,
+        account_state_class=account_state_class,
+    )
+
+    computation, current_block, trie_data_dict = apply_state_transition_with_witness(
+        witness_db,
+        transaction,
+        current_block,
+        receipts,
+        state_class,
+        execution_context)
+
+    if computation.is_success:
+        block_witness.update(transaction_witness)
+        return (
+            current_block,
+            computation.vm_state.receipts,
+            merge(recent_trie_nodes_db, computation.vm_state.access_logs.writes),
+            merge(trie_data_dict, recent_trie_data_dict),
+            block_witness
+        )
+    else:
+        pass

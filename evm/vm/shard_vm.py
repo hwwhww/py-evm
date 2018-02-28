@@ -1,3 +1,7 @@
+from cytoolz import (
+    pipe,
+)
+
 from eth_utils import (
     keccak,
 )
@@ -8,13 +12,10 @@ from trie import (
 
 from evm.db.backends.memory import MemoryDB
 from evm.db.chain import ChainDB
-from evm.db.state import (
-    MainAccountStateDB,
-    ShardingAccountStateDB,
-)
 from evm.utils.state import (
+    apply_single_transaction,
+    apply_single_transaction_with_transaction_package,
     update_witness_db,
-    update_recent_trie_nodes_db,
 )
 
 from .base import (
@@ -29,7 +30,7 @@ class ShardVM(BaseVM):
     #
     # Apply block
     #
-    def apply_block_with_witness(self, block, witness, account_state_class=ShardingAccountStateDB):
+    def apply_block_with_witness(self, block, witness):
         self.configure_header(
             coinbase=block.header.coinbase,
             gas_limit=block.header.gas_limit,
@@ -40,49 +41,34 @@ class ShardVM(BaseVM):
             uncles_hash=keccak(rlp.encode(block.uncles)),
         )
 
-        recent_trie_nodes_db = dict([(keccak(value), value) for value in witness])
         receipts = []
+        recent_trie_nodes_db = dict([(keccak(value), value) for value in witness])
+        recent_trie_data_dict = {}
         prev_hashes = self.previous_hashes
-
+        state_class = self.get_state_class()
+        account_state_class = self.chaindb.account_state_class
         execution_context = ExecutionContext.from_block_header(block.header, prev_hashes)
 
-        # run all of the transactions.
-        for transaction in block.transactions:
-            witness_db = ChainDB(
-                MemoryDB(recent_trie_nodes_db),
-                account_state_class=account_state_class,
-                trie_class=BinaryTrie,
-            )
-
-            vm_state = self.get_state_class()(
-                chaindb=witness_db,
-                execution_context=execution_context,
-                state_root=self.block.header.state_root,
-                receipts=receipts,
-            )
-            computation, result_block, trie_data_dict = vm_state.apply_transaction(
-                transaction=transaction,
-                block=self.block,
-            )
-
-            if computation.is_success:
-                # block = result_block
-                self.block = result_block
-                receipts = computation.vm_state.receipts
-                recent_trie_nodes_db = update_recent_trie_nodes_db(
-                    recent_trie_nodes_db,
-                    computation.vm_state.access_logs.writes
-                )
-                self.chaindb.persist_trie_data_dict_to_db(trie_data_dict)
-
-            else:
-                pass
+        txn_applicators = [
+            apply_single_transaction(
+                transaction,
+                state_class,
+                account_state_class,
+                execution_context,
+            ) for transaction in block.transactions
+        ]
+        result_block, receipts, trie_nodes, trie_dict = pipe(
+            [self.block, receipts, recent_trie_nodes_db, recent_trie_data_dict],
+            *txn_applicators
+        )
+        self.chaindb.persist_trie_data_dict_to_db(trie_dict)
 
         # transfer the list of uncles.
-        self.block.uncles = block.uncles
+        self.block = result_block
+        self.block.uncles = result_block.uncles
 
         witness_db = ChainDB(
-            MemoryDB(recent_trie_nodes_db),
+            MemoryDB(trie_nodes),
             account_state_class=account_state_class,
             trie_class=BinaryTrie,
         )
@@ -120,7 +106,7 @@ class ShardVM(BaseVM):
             witness_package,
             prev_hashes,
             parent_header,
-            account_state_class=MainAccountStateDB):
+            account_state_class):
         """
         Build a block with transaction witness
         """
@@ -128,56 +114,42 @@ class ShardVM(BaseVM):
             parent_header,
             witness_package.coinbase,
         )
-
-        recent_trie_nodes_db = {}
-        block_witness = set()
         receipts = []
+        recent_trie_nodes_db = {}
+        recent_trie_data_dict = {}
+        block_witness = set()
         transaction_packages = witness_package.transaction_packages
-        for (transaction, transaction_witness) in transaction_packages:
-            witness_db = update_witness_db(
-                witness=transaction_witness,
-                recent_trie_nodes_db=recent_trie_nodes_db,
-                account_state_class=account_state_class,
-            )
+        state_class = cls.get_state_class()
+        execution_context = ExecutionContext.from_block_header(block.header, prev_hashes)
 
-            execution_context = ExecutionContext.from_block_header(block.header, prev_hashes)
-            vm_state = cls.get_state_class()(
-                chaindb=witness_db,
-                execution_context=execution_context,
-                state_root=block.header.state_root,
-                receipts=receipts,
-            )
-            computation, result_block, _ = vm_state.apply_transaction(
-                transaction=transaction,
-                block=block,
-            )
-
-            if computation.is_success:
-                block = result_block
-                receipts = computation.vm_state.receipts
-                recent_trie_nodes_db = update_recent_trie_nodes_db(
-                    recent_trie_nodes_db,
-                    computation.vm_state.access_logs.writes
-                )
-                block_witness.update(transaction_witness)
-            else:
-                pass
+        txn_applicators = [
+            apply_single_transaction_with_transaction_package(
+                transaction_package,
+                state_class,
+                account_state_class,
+                execution_context,
+            ) for transaction_package in transaction_packages
+        ]
+        result_block, receipts, trie_nodes, _, block_witness = pipe(
+            [block, receipts, recent_trie_nodes_db, recent_trie_data_dict, block_witness],
+            *txn_applicators
+        )
 
         # Finalize
         # For sharding, ignore uncles and nephews.
         witness_db = update_witness_db(
             witness=witness_package.coinbase_witness,
-            recent_trie_nodes_db=recent_trie_nodes_db,
+            recent_trie_nodes_db=trie_nodes,
             account_state_class=account_state_class,
         )
 
-        execution_context = ExecutionContext.from_block_header(block.header, prev_hashes)
+        # execution_context = ExecutionContext.from_block_header(block.header, prev_hashes)
         vm_state = cls.get_state_class()(
             chaindb=witness_db,
             execution_context=execution_context,
-            state_root=block.header.state_root,
+            state_root=result_block.header.state_root,
             receipts=receipts,
         )
-        block = vm_state.finalize_block(block)
+        block = vm_state.finalize_block(result_block)
         block_witness.update(witness_package.coinbase_witness)
         return block, block_witness
