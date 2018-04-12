@@ -73,8 +73,10 @@ class Server:
         ephem_pubkey, initiator_nonce, initiator_pubkey = decode_authentication(msg, self.privkey)
 
         # Get remote's address
-        ip, udp, _, _ = writer.get_extra_info("peername")
-        remote_address = Address(ip, udp)
+        peername = writer.get_extra_info("peername")
+        ip = peername[0]
+        port = peername[1]
+        remote_address = Address(ip, port)
 
         # Create `HandshakeResponder(remote: kademlia.Node, privkey: datatypes.PrivateKey)` instance
         initiator_remote = Node(initiator_pubkey, remote_address)

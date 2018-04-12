@@ -64,9 +64,9 @@ def get_open_port():
     return port
 
 
-SERVER_ADDRESS = Address('::1', get_open_port())
+SERVER_ADDRESS = Address('127.0.0.1', get_open_port())
 INITIATOR_PUBKEY = keys.PrivateKey(test_values['initiator_private_key']).public_key
-INITIATOR_ADDRESS = Address('::1', get_open_port() + 1)
+INITIATOR_ADDRESS = Address('127.0.0.1', get_open_port() + 1)
 INITIATOR_REMOTE = Node(INITIATOR_PUBKEY, INITIATOR_ADDRESS)
 
 
