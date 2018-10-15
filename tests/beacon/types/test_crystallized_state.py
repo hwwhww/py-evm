@@ -85,7 +85,7 @@ def test_num_crosslink_records(expected,
         (20),
     ]
 )
-def test_total_deposits(num_active_validators,
+def test_total_balance(num_active_validators,
                         deposit_size,
                         default_end_dynasty,
                         empty_crystallized_state):
@@ -115,8 +115,8 @@ def test_total_deposits(num_active_validators,
 
     assert len(crystallized_state.active_validator_indices) == len(active_validators)
 
-    expected_total_deposits = deposit_size * num_active_validators
-    assert crystallized_state.total_deposits == expected_total_deposits
+    expected_total_balance = deposit_size * num_active_validators
+    assert crystallized_state.total_balance == expected_total_balance
 
 
 def test_hash(sample_crystallized_state_params):
