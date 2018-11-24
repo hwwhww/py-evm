@@ -1,9 +1,14 @@
 import pytest
 
+from eth.beacon.enums.validator_status_codes import (
+    ValidatorStatusCode,
+)
 from eth.beacon.types.attestation_records import AttestationRecord
 from eth.beacon.types.shard_and_committees import ShardAndCommittee
+from eth.beacon.types.validator_records import ValidatorRecord
 from eth.beacon.helpers import (
     _get_element_from_recent_list,
+    get_active_validator_indices,
     get_attestation_indices,
     get_block_hash,
     get_hashes_from_recent_block_hashes,
@@ -397,3 +402,22 @@ def test_get_block_committees_info(monkeypatch,
             block_committees_info.proposer_index_in_committee ==
             result_proposer_index_in_committee
         )
+
+
+def test_get_active_validator_indices(sample_validator_record_params):
+    # 3 validators are ACTIVE by default.
+    validators = [
+        ValidatorRecord(
+            **sample_validator_record_params,
+        )
+        for i in range(3)
+    ]
+    active_validator_indices = get_active_validator_indices(validators)
+    assert len(active_validator_indices) == 3
+
+    # Make one validator becomes PENDING_EXIT.
+    validators[0] = validators[0].copy(
+        status=ValidatorStatusCode.PENDING_EXIT,
+    )
+    active_validator_indices = get_active_validator_indices(validators)
+    assert len(active_validator_indices) == 2

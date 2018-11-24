@@ -23,6 +23,9 @@ from eth.utils.numeric import (
 )
 
 from eth.beacon.block_committees_info import BlockCommitteesInfo
+from eth.beacon.enums.validator_status_codes import (
+    ValidatorStatusCode,
+)
 from eth.beacon.types.shard_and_committees import (
     ShardAndCommittee,
 )
@@ -37,6 +40,7 @@ if TYPE_CHECKING:
     from eth.beacon.types.attestation_records import AttestationRecord  # noqa: F401
     from eth.beacon.types.blocks import BaseBeaconBlock  # noqa: F401
     from eth.beacon.types.crystallized_states import CrystallizedState  # noqa: F401
+    from eth.beacon.types.states import BeaconState  # noqa: F401
     from eth.beacon.types.validator_records import ValidatorRecord  # noqa: F401
 
 
@@ -170,6 +174,9 @@ def get_shards_and_committees_for_slot(
         crystallized_state: 'CrystallizedState',
         slot: int,
         cycle_length: int) -> Iterable[ShardAndCommittee]:
+    """
+    FIXME
+    """
     if len(crystallized_state.shard_and_committee_for_slots) != cycle_length * 2:
         raise ValueError(
             "Length of shard_and_committee_for_slots != cycle_length * 2"
@@ -192,6 +199,7 @@ def get_attestation_indices(crystallized_state: 'CrystallizedState',
                             attestation: 'AttestationRecord',
                             cycle_length: int) -> Iterable[int]:
     """
+    FIXME
     Return committee of the given attestation.
     """
     shard_id = attestation.shard_id
@@ -208,16 +216,13 @@ def get_attestation_indices(crystallized_state: 'CrystallizedState',
 
 
 @to_tuple
-def get_active_validator_indices(dynasty: int,
-                                 validators: Iterable['ValidatorRecord']) -> Iterable[int]:
+def get_active_validator_indices(validators: Sequence['ValidatorRecord']) -> Iterable[int]:
     """
-    TODO: Logic changed in the latest spec, will have to update when we add validator
-    rotation logic.
-    https://github.com/ethereum/eth2.0-specs/commit/52cf7f943dc99cfd27db9fb2c03c692858e2a789#diff-a08ecec277db4a6ed0b3635cfadc9af1  # noqa: E501
+    Return the active validators.
     """
     o = []
     for index, validator in enumerate(validators):
-        if (validator.start_dynasty <= dynasty and dynasty < validator.end_dynasty):
+        if (validator.status == ValidatorStatusCode.ACTIVE):
             o.append(index)
     return o
 
@@ -231,6 +236,7 @@ def _get_shuffling_committee_slot_portions(
         min_committee_size: int,
         shard_count: int) -> Tuple[int, int]:
     """
+    FIXME
     Return committees number per slot and slots number per committee.
     """
     # If there are enough active validators to form committees for every slot
@@ -260,6 +266,7 @@ def _get_shards_and_committees_for_shard_indices(
         shard_start: int,
         shard_count: int) -> Iterable[ShardAndCommittee]:
     """
+    FIXME
     Returns filled [ShardAndCommittee] tuple.
     """
     for index, indices in enumerate(shard_indices):
@@ -279,6 +286,7 @@ def get_new_shuffling(*,
                       min_committee_size: int,
                       shard_count: int) -> Iterable[Iterable[ShardAndCommittee]]:
     """
+    FIXME
     Return shuffled ``shard_and_committee_for_slots`` (``[[ShardAndCommittee]]``) of
     the given active ``validators``.
 
@@ -356,6 +364,7 @@ def get_block_committees_info(parent_block: 'BaseBeaconBlock',
         cycle_length,
     )
     """
+    FIXME
     Return the block committees and proposer info with BlockCommitteesInfo pack.
     """
     # `proposer_index_in_committee` th attester in `shard_and_committee`
