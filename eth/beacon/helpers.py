@@ -6,7 +6,6 @@ from typing import (
     Any,
     Iterable,
     Sequence,
-    Tuple,
     TYPE_CHECKING,
 )
 
@@ -230,40 +229,10 @@ def get_active_validator_indices(validators: Sequence['ValidatorRecord']) -> Ite
 #
 # Shuffling
 #
-def _get_shuffling_committee_slot_portions(
-        active_validators_size: int,
-        cycle_length: int,
-        min_committee_size: int,
-        shard_count: int) -> Tuple[int, int]:
-    """
-    FIXME
-    Return committees number per slot and slots number per committee.
-    """
-    # If there are enough active validators to form committees for every slot
-    if active_validators_size >= cycle_length * min_committee_size:
-        # One slot can be attested by many committees, but not more than shard_count // cycle_length
-        committees_per_slot = min(
-            active_validators_size // cycle_length // (min_committee_size * 2) + 1,
-            shard_count // cycle_length
-        )
-        # One committee only has to attest one slot
-        slots_per_committee = 1
-    else:
-        # One slot can only be asttested by one committee
-        committees_per_slot = 1
-        # One committee has to asttest more than one slot
-        slots_per_committee = 1
-        bound = cycle_length * min(min_committee_size, active_validators_size)
-        while(active_validators_size * slots_per_committee < bound):
-            slots_per_committee *= 2
-
-    return committees_per_slot, slots_per_committee
-
-
 @to_tuple
 def _get_shards_and_committees_for_shard_indices(
         shard_indices: Sequence[Sequence[int]],
-        shard_start: int,
+        start_shard: int,
         shard_count: int) -> Iterable[ShardAndCommittee]:
     """
     FIXME
@@ -271,7 +240,7 @@ def _get_shards_and_committees_for_shard_indices(
     """
     for index, indices in enumerate(shard_indices):
         yield ShardAndCommittee(
-            shard=(shard_start + index) % shard_count,
+            shard=(start_shard + index) % shard_count,
             committee=indices
         )
 
@@ -280,13 +249,11 @@ def _get_shards_and_committees_for_shard_indices(
 def get_new_shuffling(*,
                       seed: Hash32,
                       validators: Sequence['ValidatorRecord'],
-                      dynasty: int,
                       crosslinking_start_shard: int,
                       cycle_length: int,
-                      min_committee_size: int,
+                      target_committee_size: int,
                       shard_count: int) -> Iterable[Iterable[ShardAndCommittee]]:
     """
-    FIXME
     Return shuffled ``shard_and_committee_for_slots`` (``[[ShardAndCommittee]]``) of
     the given active ``validators``.
 
@@ -327,15 +294,13 @@ def get_new_shuffling(*,
                     ShardAndCommittee(shard_id=5, committee=[7, 3, 11]),
                 ],
             ]
-
-    NOTE: The spec might be updated to output an array rather than an array of arrays.
     """
-    active_validators = get_active_validator_indices(dynasty, validators)
+    active_validators = get_active_validator_indices(validators)
     active_validators_size = len(active_validators)
     committees_per_slot = clamp(
         1,
         shard_count // cycle_length,
-        active_validators_size // cycle_length // (min_committee_size * 2) + 1,
+        active_validators_size // cycle_length // target_committee_size,
     )
     shuffled_active_validator_indices = shuffle(active_validators, seed)
 
@@ -344,10 +309,10 @@ def get_new_shuffling(*,
     for index, slot_indices in enumerate(validators_per_slot):
         # Split the shuffled list into committees_per_slot pieces
         shard_indices = split(slot_indices, committees_per_slot)
-        shard_id_start = crosslinking_start_shard + index * committees_per_slot
+        start_shard = crosslinking_start_shard + index * committees_per_slot
         yield _get_shards_and_committees_for_shard_indices(
             shard_indices,
-            shard_id_start,
+            start_shard,
             shard_count,
         )
 

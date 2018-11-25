@@ -1,9 +1,20 @@
 import pytest
 
+from eth_utils import denoms
+from eth_utils import (
+    to_tuple,
+)
+
 import eth.utils.bls as bls
 from eth.utils.blake import blake
 
+from eth.beacon.enums.validator_status_codes import (
+    ValidatorStatusCode,
+)
 from eth.beacon.state_machines.forks.serenity.configs import SERENITY_CONFIG
+from eth.beacon.types.validator_records import (
+    ValidatorRecord,
+)
 
 DEFAULT_SHUFFLING_SEED = b'\00' * 32
 DEFAULT_RANDAO = b'\45' * 32
@@ -308,3 +319,26 @@ def logout_message():
 @pytest.fixture
 def initial_fork_version():
     return SERENITY_CONFIG.INITIAL_FORK_VERSION
+
+
+#
+# genesis
+#
+@pytest.fixture
+@to_tuple
+def genesis_validators(init_validator_keys,
+                       init_randao,
+                       deposit_size):
+    return [
+        ValidatorRecord(
+            pubkey=pub,
+            withdrawal_shard=0,
+            withdrawal_address=blake(pub.to_bytes(32, 'big'))[-20:],
+            randao_commitment=init_randao,
+            randao_last_change=0,
+            balance=deposit_size * denoms.gwei,
+            status=ValidatorStatusCode.ACTIVE,
+            last_status_change_slot=0,
+            exit_seq=0,
+        ) for pub in init_validator_keys
+    ]

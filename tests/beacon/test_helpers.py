@@ -269,31 +269,29 @@ def test_get_attestation_indices(genesis_crystallized_state,
 #
 # Shuffling
 #
-@pytest.mark.xfail(reason="Need to be fixed")
-# @pytest.mark.parametrize(
-#     (
-#         'num_validators,'
-#         'cycle_length,min_committee_size,shard_count'
-#     ),
-#     [
-#         (1000, 20, 10, 100),
-#         (100, 50, 10, 10),
-#         (20, 10, 3, 10),  # active_validators_size < cycle_length * min_committee_size
-#     ],
-# )
+@pytest.mark.parametrize(
+    (
+        'num_validators,'
+        'cycle_length,'
+        'target_committee_size,'
+        'shard_count'
+    ),
+    [
+        (1000, 20, 10, 100),
+        (100, 50, 10, 10),
+        (20, 10, 3, 10),  # active_validators_size < cycle_length * target_committee_size
+    ],
+)
 def test_get_new_shuffling_is_complete(genesis_validators,
                                        cycle_length,
-                                       min_committee_size,
+                                       target_committee_size,
                                        shard_count):
-    dynasty = 1
-
     shuffling = get_new_shuffling(
         seed=b'\x35' * 32,
         validators=genesis_validators,
-        dynasty=dynasty,
         crosslinking_start_shard=0,
         cycle_length=cycle_length,
-        min_committee_size=min_committee_size,
+        target_committee_size=target_committee_size,
         shard_count=shard_count,
     )
 
@@ -302,45 +300,43 @@ def test_get_new_shuffling_is_complete(genesis_validators,
     shards = set()
     for slot_indices in shuffling:
         for shard_and_committee in slot_indices:
-            shards.add(shard_and_committee.shard_id)
+            shards.add(shard_and_committee.shard)
             for validator_index in shard_and_committee.committee:
                 validators.add(validator_index)
 
     assert len(validators) == len(genesis_validators)
 
 
-@pytest.mark.xfail(reason="Need to be fixed")
-# @pytest.mark.parametrize(
-#     (
-#         'num_validators,'
-#         'cycle_length,min_committee_size,shard_count'
-#     ),
-#     [
-#         (1000, 20, 10, 100),
-#         (100, 50, 10, 10),
-#         (20, 10, 3, 10),
-#     ],
-# )
+@pytest.mark.parametrize(
+    (
+        'num_validators,'
+        'cycle_length,'
+        'target_committee_size,'
+        'shard_count'
+    ),
+    [
+        (1000, 20, 10, 100),
+        (100, 50, 10, 10),
+        (20, 10, 3, 10),
+    ],
+)
 def test_get_new_shuffling_handles_shard_wrap(genesis_validators,
                                               cycle_length,
-                                              min_committee_size,
+                                              target_committee_size,
                                               shard_count):
-    dynasty = 1
-
     shuffling = get_new_shuffling(
         seed=b'\x35' * 32,
         validators=genesis_validators,
-        dynasty=dynasty,
         crosslinking_start_shard=shard_count - 1,
         cycle_length=cycle_length,
-        min_committee_size=min_committee_size,
+        target_committee_size=target_committee_size,
         shard_count=shard_count,
     )
 
     # shard assignments should wrap around to 0 rather than continuing to SHARD_COUNT
     for slot_indices in shuffling:
         for shard_and_committee in slot_indices:
-            assert shard_and_committee.shard_id < shard_count
+            assert shard_and_committee.shard < shard_count
 
 
 #
