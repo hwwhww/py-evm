@@ -80,17 +80,17 @@ def test_multi_aggregation(msg_1, msg_2, privkeys):
     aggpub_1 = aggregate_pubs(pubs_1)
 
     sigs_2 = [sign(msg_2, k, domain=domain) for k in privkeys]
-    pubs_2 = [privtopub(k) for k in privkeys[0:2]]
+    pubs_2 = [privtopub(k) for k in privkeys]
     aggsig_2 = aggregate_sigs(sigs_2)
     aggpub_2 = aggregate_pubs(pubs_2)
 
     msgs = [msg_1, msg_2]
-    aggsig = aggregate_sigs([aggsig_1, aggsig_2])
     pubs = [aggpub_1, aggpub_2]
+    aggsig = aggregate_sigs([aggsig_1, aggsig_2])
 
     assert multi_verify(
         pubs=pubs,
         msgs=msgs,
-        sig=aggsig_1,
+        sig=aggsig,
         domain=domain,
     )

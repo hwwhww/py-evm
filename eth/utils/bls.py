@@ -121,9 +121,6 @@ def decompress_G2(p: bytes) -> Tuple[FQ2, FQ2, FQ2]:
     if y.coeffs[0] % 2 != y1_mod_2:
         y = y * -1
 
-    # TODO: not sure if we need it
-    # assert is_on_curve((x, y, FQ2([1, 0])), b2)
-
     return x, y, FQ2([1, 0])
 
 
@@ -176,8 +173,17 @@ def multi_verify(pubs, msgs, sig, domain):
         group_pub = Z1
         for i in range(len_msgs):
             if msgs[i] == m:
-                group_pub = add(group_pub, decompress_G1(pubs[i]))
+                temp = add(group_pub, decompress_G1(pubs[i]))
+                assert type(temp) == type(group_pub)
+                group_pub = temp
 
-        o *= pairing(group_pub, hash_to_G2(m, domain), final_exponentiate=False)
-        o *= pairing(neg(Z1), decompress_G2(sig), final_exponentiate=False)
-    return o ** ((q ** 12 - 1) // curve_order) == 1
+        o *= pairing(hash_to_G2(m, domain), group_pub, final_exponentiate=False)
+    o *= pairing(decompress_G2(sig), neg(Z1), final_exponentiate=False)
+
+    final_exponentiation = final_exponentiate(o)
+    print('final_exponentiation: {}'.format(type(final_exponentiation)))
+    print('FQ12.one(): {}'.format(type(FQ12.one())))
+
+    assert final_exponentiation == FQ12.one()
+
+    # return o ** ((q ** 12 - 1) // curve_order) == 1
