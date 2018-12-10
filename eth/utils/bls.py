@@ -167,18 +167,17 @@ def aggregate_pubs(pubs: Iterable[int]) -> int:
     return compress_G1(o)
 
 
-def multi_verify(pubs, msgs, sig):
+def multi_verify(pubs, msgs, sig, domain):
     len_msgs = len(msgs)
     assert len(pubs) == len_msgs
-    # o = FQ12(1)
-    o = Z1
+    o = FQ12([1] + [0] * 11)
     for m in set(msgs):
+        # aggregate the pubs
         group_pub = Z1
         for i in range(len_msgs):
             if msgs[i] == m:
-                # aggregate the pubs
                 group_pub = add(group_pub, decompress_G1(pubs[i]))
-        
-        o *= pairing(group_pub, m, final_exponentiate=False)
-        o *= pairing(neg(Z1), sig, final_exponentiate=False)
+
+        o *= pairing(group_pub, hash_to_G2(m, domain), final_exponentiate=False)
+        o *= pairing(neg(Z1), decompress_G2(sig), final_exponentiate=False)
     return o ** ((q ** 12 - 1) // curve_order) == 1
