@@ -18,10 +18,6 @@ from eth.utils.bls import (
     multi_verify,
 )
 
-from tests.core.helpers import (
-    greater_equal_python36,
-)
-
 
 @pytest.mark.parametrize(
     'privkey',
@@ -75,6 +71,7 @@ def test_signature_aggregation(msg, privkeys):
 def test_multi_aggregation(msg_1, msg_2, privkeys):
     domain = 0
     sigs_1 = [sign(msg_1, k, domain=domain) for k in privkeys]
+
     pubs_1 = [privtopub(k) for k in privkeys]
     aggsig_1 = aggregate_sigs(sigs_1)
     aggpub_1 = aggregate_pubs(pubs_1)
