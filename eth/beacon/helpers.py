@@ -25,9 +25,6 @@ from eth._utils.numeric import (
     clamp,
 )
 
-from eth.beacon.types.validator_registry_delta_block import (
-    ValidatorRegistryDeltaBlock,
-)
 from eth.beacon.block_committees_info import (
     BlockCommitteesInfo,
 )
@@ -381,22 +378,6 @@ def get_effective_balance(
     ``validator`` with the given ``index``.
     """
     return min(validator_balances[index], max_deposit * denoms.gwei)
-
-
-def get_new_validator_registry_delta_chain_tip(current_validator_registry_delta_chain_tip: Hash32,
-                                               validator_index: ValidatorIndex,
-                                               pubkey: BLSPubkey,
-                                               flag: ValidatorRegistryDeltaFlag) -> Hash32:
-    """
-    Compute the next hash in the validator registry delta hash chain.
-    """
-    # TODO: switch to SSZ tree hashing
-    return ValidatorRegistryDeltaBlock(
-        latest_registry_delta_root=current_validator_registry_delta_chain_tip,
-        validator_index=validator_index,
-        pubkey=pubkey,
-        flag=flag,
-    ).root
 
 
 def get_fork_version(fork_data: 'ForkData',
