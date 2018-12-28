@@ -19,7 +19,7 @@ from eth.beacon.state_machines.forks.serenity.validation import (
     validate_serenity_proposer_signature,
 )
 
-from tests.beacon.helpers import mock_validator_record
+from tests.beacon.helpers import mock_active_validator_record
 from tests.beacon.test_helpers import (
     get_sample_shard_committees_at_slots,
 )
@@ -49,7 +49,7 @@ def test_validate_serenity_proposer_signature(
 
     state = BeaconState(**sample_beacon_state_params).copy(
         validator_registry=[
-            mock_validator_record(proposer_pubkey)
+            mock_active_validator_record(proposer_pubkey)
             for _ in range(10)
         ],
         shard_committees_at_slots=get_sample_shard_committees_at_slots(
