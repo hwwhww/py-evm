@@ -68,7 +68,6 @@ def create_mock_signed_attestations_at_slot(config,
 
 @pytest.mark.parametrize(
     (
-        'num_validators,'
         'epoch_length,'
         'min_attestation_inclusion_delay,'
         'target_committee_size,'
@@ -76,9 +75,9 @@ def create_mock_signed_attestations_at_slot(config,
         'success,'
     ),
     [
-        (10, 2, 1, 2, 2, True),
-        (10, 2, 1, 2, 2, False),
-        (40, 4, 2, 3, 5, True),
+        (2, 1, 2, 2, True),
+        (2, 1, 2, 2, False),
+        (4, 2, 3, 5, True),
     ]
 )
 def test_process_attestations(genesis_state,

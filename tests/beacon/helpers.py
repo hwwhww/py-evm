@@ -2,11 +2,14 @@ from eth_utils import to_tuple
 
 from eth._utils import bls
 
+from eth.constants import (
+    ZERO_HASH32,
+)
 from eth.beacon.constants import (
     EMPTY_SIGNATURE,
 )
 from eth.beacon.enums import (
-    ValidatorStatusCode,
+    ValidatorStatusFlags,
 )
 from eth.beacon.types.deposit_input import DepositInput
 from eth.beacon.types.validator_records import (
@@ -14,15 +17,22 @@ from eth.beacon.types.validator_records import (
 )
 
 
-def mock_validator_record(pubkey, status=ValidatorStatusCode.ACTIVE):
+def mock_validator_record(pubkey,
+                          far_future_slot,
+                          withdrawal_credentials=ZERO_HASH32,
+                          randao_commitment=ZERO_HASH32,
+                          status_flags=ValidatorStatusFlags.INITIAL):
     return ValidatorRecord(
         pubkey=pubkey,
-        withdrawal_credentials=b'\x44' * 32,
-        randao_commitment=b'\x55' * 32,
+        withdrawal_credentials=withdrawal_credentials,
+        randao_commitment=randao_commitment,
         randao_layers=0,
-        status=status,
-        latest_status_change_slot=0,
+        activation_slot=far_future_slot,
+        exit_slot=far_future_slot,
+        withdrawal_slot=far_future_slot,
+        penalized_slot=far_future_slot,
         exit_count=0,
+        status_flags=status_flags,
         custody_commitment=b'\x55' * 32,
         latest_custody_reseed_slot=0,
         penultimate_custody_reseed_slot=0,

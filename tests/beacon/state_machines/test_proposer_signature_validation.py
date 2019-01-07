@@ -46,11 +46,12 @@ def test_validate_serenity_proposer_signature(
         sample_shard_committee_params,
         beacon_chain_shard_number,
         epoch_length,
-        max_deposit):
+        max_deposit,
+        far_future_slot):
 
     state = BeaconState(**sample_beacon_state_params).copy(
         validator_registry=tuple(
-            mock_validator_record(proposer_pubkey)
+            mock_validator_record(proposer_pubkey, far_future_slot)
             for _ in range(10)
         ),
         validator_balances=tuple(

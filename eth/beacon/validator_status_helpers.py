@@ -4,25 +4,15 @@ from typing import (
     Sequence,
 )
 
-from eth_utils import (
-    to_tuple,
-)
-from eth_utils.toolz import (
-    remove,
-)
-
 from eth.beacon.helpers import (
     get_beacon_proposer_index,
     get_effective_balance,
 )
 from eth.beacon.types.states import BeaconState
-from eth.beacon.types.validator_records import (
-    VALIDATOR_RECORD_EXITED_STATUSES,
-)
 from eth.beacon.types.validator_registry_delta_block import ValidatorRegistryDeltaBlock
 from eth.beacon.enums import (
     ValidatorRegistryDeltaFlag,
-    ValidatorStatusCode,
+    ValidatorStatusFlags,
 )
 
 
@@ -38,57 +28,29 @@ def update_tuple_item(tuple_data: Sequence[Any], index: int, new_value: Any) -> 
 #
 # State update
 #
-def update_validator_status(state: BeaconState,
-                            index: int,
-                            new_status: ValidatorStatusCode,
-                            collective_penalty_calculation_period: int,
-                            whistleblower_reward_quotient: int,
-                            epoch_length: int,
-                            max_deposit: int) -> BeaconState:
-    """
-    Update the validator status with the given ``index`` to ``new_status``.
-    Handle other general accounting related to this status update.
-    Return the updated state (immutable).
-    """
-    if new_status == ValidatorStatusCode.ACTIVE:
-        state = activate_validator(state, index)
-    if new_status == ValidatorStatusCode.ACTIVE_PENDING_EXIT:
-        state = initiate_validator_exit(state, index)
-    if new_status in VALIDATOR_RECORD_EXITED_STATUSES:
-        state = exit_validator(
-            state,
-            index,
-            new_status,
-            collective_penalty_calculation_period,
-            whistleblower_reward_quotient,
-            epoch_length,
-            max_deposit,
-        )
-
-    return state
-
-
 def activate_validator(state: BeaconState,
-                       index: int) -> BeaconState:
+                       index: int,
+                       genesis: int,
+                       genesis_slot: int,
+                       entry_exit_delay: int) -> BeaconState:
     """
     Activate the validator with the given ``index``.
     Return the updated state (immutable).
     """
+    # Update validator.activation_slot
     validator = state.validator_registry[index]
-
-    if validator.status != ValidatorStatusCode.PENDING_ACTIVATION:
-        return state
-
     validator = validator.copy(
-        status=ValidatorStatusCode.ACTIVE,
-        latest_status_change_slot=state.slot,
+        activation_slot=genesis_slot if genesis else (state.slot + entry_exit_delay)
     )
     state = state.update_validator_registry(index, validator)
 
+    # Update state.validator_registry_delta_chain_tip
+    # TODO: use tree hashing
     new_validator_registry_delta_chain_tip = ValidatorRegistryDeltaBlock(
         latest_registry_delta_root=state.validator_registry_delta_chain_tip,
         validator_index=index,
         pubkey=validator.pubkey,
+        slot=validator.activation_slot,
         flag=ValidatorRegistryDeltaFlag.ACTIVATION,
     ).root
     state = state.copy(
@@ -105,13 +67,8 @@ def initiate_validator_exit(state: BeaconState,
     Return the updated state (immutable).
     """
     validator = state.validator_registry[index]
-
-    if validator.status != ValidatorStatusCode.ACTIVE:
-        return state
-
     validator = validator.copy(
-        status=ValidatorStatusCode.ACTIVE_PENDING_EXIT,
-        latest_status_change_slot=state.slot,
+        status_flags=validator.status_flags | ValidatorStatusFlags.INITIATED_EXIT
     )
     state = state.update_validator_registry(index, validator)
 
@@ -120,106 +77,95 @@ def initiate_validator_exit(state: BeaconState,
 
 def exit_validator(state: BeaconState,
                    index: int,
-                   new_status: ValidatorStatusCode,
-                   collective_penalty_calculation_period: int,
-                   whistleblower_reward_quotient: int,
-                   epoch_length: int,
-                   max_deposit: int) -> BeaconState:
+                   entry_exit_delay: int) -> BeaconState:
     """
     Exit the validator with the given ``index``.
     Return the updated state (immutable).
     """
     validator = state.validator_registry[index]
-    previous_status = validator.status
 
-    if previous_status == ValidatorStatusCode.EXITED_WITH_PENALTY:
+    if validator.exit_slot <= state.slot + entry_exit_delay:
         return state
 
-    # Update validator's status and latest_status_change_slot
+    # Update state.validator_registry_exit_count
+    state = state.copy(
+        validator_registry_exit_count=state.validator_registry_exit_count + 1,
+    )
+
+    # Update validator.exit_slot and exit_slot.exit_count
     validator = validator.copy(
-        status=new_status,
-        latest_status_change_slot=state.slot,
+        exit_slot=state.slot + entry_exit_delay,
+        exit_count=state.validator_registry_exit_count,
     )
     state = state.update_validator_registry(index, validator)
 
-    # Calculate rewards and penalties
-    if new_status == ValidatorStatusCode.EXITED_WITH_PENALTY:
-        # If new status is EXITED_WITH_PENALTY,
-        # apply the penalty to the validator and the reward to whistleblower.
-        state = settle_penality_to_validator_and_whistleblower(
-            state=state,
-            validator_index=index,
-            collective_penalty_calculation_period=collective_penalty_calculation_period,
-            whistleblower_reward_quotient=whistleblower_reward_quotient,
-            epoch_length=epoch_length,
-            max_deposit=max_deposit,
-        )
-
-    if previous_status == ValidatorStatusCode.EXITED_WITHOUT_PENALTY:
-        # Case 1: EXITED_WITHOUT_PENALTY -> EXITED_WITHOUT_PENALTY
-        # Case 2: EXITED_WITHOUT_PENALTY -> EXITED_WITH_PENALTY
-        return state
-    else:
-        # The following updates only occur if not previous exited
-        # Update validator's exit_count
-        validator = validator.copy(
-            exit_count=state.validator_registry_exit_count,
-        )
-        state = state.update_validator_registry(index, validator)
-
-        new_validator_registry_delta_chain_tip = ValidatorRegistryDeltaBlock(
-            latest_registry_delta_root=state.validator_registry_delta_chain_tip,
-            validator_index=index,
-            pubkey=validator.pubkey,
-            flag=ValidatorRegistryDeltaFlag.EXIT,
-        ).root
-
-        # Remove validator from persistent_committees
-        new_persistent_committees = get_new_persistent_committees(
-            persistent_committees=state.persistent_committees,
-            removing_validator_index=index,
-        )
-
-        # Update the diff
-        state = state.copy(
-            validator_registry_exit_count=state.validator_registry_exit_count + 1,
-            validator_registry_delta_chain_tip=new_validator_registry_delta_chain_tip,
-            persistent_committees=new_persistent_committees,
-        )
+    # Update state.validator_registry_delta_chain_tip
+    new_validator_registry_delta_chain_tip = ValidatorRegistryDeltaBlock(
+        latest_registry_delta_root=state.validator_registry_delta_chain_tip,
+        validator_index=index,
+        pubkey=validator.pubkey,
+        slot=validator.exit_slot,
+        flag=ValidatorRegistryDeltaFlag.EXIT,
+    ).root
+    state = state.copy(
+        validator_registry_delta_chain_tip=new_validator_registry_delta_chain_tip,
+    )
 
     return state
 
 
-@to_tuple
-def get_new_persistent_committees(persistent_committees: Sequence[Sequence[int]],
-                                  removing_validator_index: int) -> Iterable[Iterable[int]]:
-    for committee in persistent_committees:
-        def is_target(x: int) -> bool:
-            return x == removing_validator_index
+def penalize_validator(state: BeaconState,
+                       index: int,
+                       epoch_length: int,
+                       latest_penalized_exit_length: int,
+                       whistleblower_reward_quotient: int,
+                       entry_exit_delay: int,
+                       max_deposit: int) -> BeaconState:
+    state = exit_validator(state, index, entry_exit_delay)
+    state = _settle_penality_to_validator_and_whistleblower(
+        state=state,
+        validator_index=index,
+        latest_penalized_exit_length=latest_penalized_exit_length,
+        whistleblower_reward_quotient=whistleblower_reward_quotient,
+        epoch_length=epoch_length,
+        max_deposit=max_deposit,
+    )
+    return state
 
-        yield tuple(remove(is_target, committee))
+
+def prepare_validator_for_withdrawal(state: BeaconState, index: int) -> BeaconState:
+    validator = state.validator_registry[index]
+    validator = validator.copy(
+        status_flags=validator.status_flags | ValidatorStatusFlags.WITHDRAWABLE
+    )
+    state = state.update_validator_registry(index, validator)
+
+    return state
 
 
-def settle_penality_to_validator_and_whistleblower(
+def _settle_penality_to_validator_and_whistleblower(
         *,
         state: BeaconState,
         validator_index: int,
-        collective_penalty_calculation_period: int,
+        latest_penalized_exit_length: int,
         whistleblower_reward_quotient: int,
         epoch_length: int,
         max_deposit: int) -> BeaconState:
-    last_penalized_slot = state.slot // collective_penalty_calculation_period
+    last_penalized_epoch = (state.slot // epoch_length) % latest_penalized_exit_length
+    effective_balance = get_effective_balance(
+        state.validator_balances,
+        validator_index,
+        max_deposit,
+    )
+
+    penalized_exit_balance = (
+        state.latest_penalized_exit_balances[last_penalized_epoch] +
+        effective_balance,
+    )
     latest_penalized_exit_balances = update_tuple_item(
         tuple_data=state.latest_penalized_exit_balances,
-        index=last_penalized_slot,
-        new_value=(
-            state.latest_penalized_exit_balances[last_penalized_slot] +
-            get_effective_balance(
-                state.validator_balances,
-                validator_index,
-                max_deposit,
-            )
-        ),
+        index=last_penalized_epoch,
+        new_value=penalized_exit_balance,
     )
     state = state.copy(
         latest_penalized_exit_balances=latest_penalized_exit_balances,
@@ -227,7 +173,7 @@ def settle_penality_to_validator_and_whistleblower(
 
     # whistleblower
     whistleblower_reward = (
-        state.validator_balances[validator_index] //
+        effective_balance //
         whistleblower_reward_quotient
     )
     whistleblower_index = get_beacon_proposer_index(state, state.slot, epoch_length)
@@ -237,8 +183,13 @@ def settle_penality_to_validator_and_whistleblower(
     )
 
     # validator
-    state = state.update_validator_balance(
+    validator = state.validator_registry[validator_index]
+    validator = validator.copy(
+        penalized_slot=state.slot,
+    )
+    state = state.update_validator(
         validator_index,
+        validator,
         state.validator_balances[validator_index] - whistleblower_reward,
     )
 

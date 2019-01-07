@@ -29,9 +29,9 @@ from tests.beacon.helpers import (
 
 def test_get_genesis_block():
     startup_state_root = b'\x10' * 32
-    initial_slot_number = 10
-    genesis_block = get_genesis_block(startup_state_root, initial_slot_number)
-    assert genesis_block.slot == initial_slot_number
+    genesis_slot = 10
+    genesis_block = get_genesis_block(startup_state_root, genesis_slot)
+    assert genesis_block.slot == genesis_slot
     assert genesis_block.parent_root == ZERO_HASH32
     assert genesis_block.state_root == startup_state_root
     assert genesis_block.randao_reveal == ZERO_HASH32
@@ -43,27 +43,27 @@ def test_get_genesis_block():
 def test_get_initial_beacon_state(
         privkeys,
         pubkeys,
-        initial_slot_number,
-        initial_fork_version,
+        genesis_slot,
+        genesis_fork_version,
+        far_future_slot,
         shard_count,
         latest_block_roots_length,
         epoch_length,
         target_committee_size,
         max_deposit,
-        zero_balance_validator_ttl,
-        collective_penalty_calculation_period,
-        whistleblower_reward_quotient,
-        latest_randao_mixes_length):
+        latest_penalized_exit_length,
+        latest_randao_mixes_length,
+        entry_exit_delay):
     withdrawal_credentials = b'\x22' * 32
     randao_commitment = b'\x33' * 32
     fork_data = ForkData(
-        pre_fork_version=initial_fork_version,
-        post_fork_version=initial_fork_version,
-        fork_slot=initial_slot_number,
+        pre_fork_version=genesis_fork_version,
+        post_fork_version=genesis_fork_version,
+        fork_slot=genesis_slot,
     )
     domain = get_domain(
         fork_data,
-        initial_slot_number,
+        genesis_slot,
         SignatureDomain.DOMAIN_DEPOSIT,
     )
     validator_count = 10
@@ -90,7 +90,7 @@ def test_get_initial_beacon_state(
                         domain=domain,
                     ),
                 ),
-                value=max_deposit,
+                amount=max_deposit,
                 timestamp=0,
             ),
         )
@@ -103,18 +103,18 @@ def test_get_initial_beacon_state(
         initial_validator_deposits=initial_validator_deposits,
         genesis_time=genesis_time,
         processed_pow_receipt_root=processed_pow_receipt_root,
-        initial_slot_number=initial_slot_number,
-        initial_fork_version=initial_fork_version,
+        genesis_slot=genesis_slot,
+        genesis_fork_version=genesis_fork_version,
+        far_future_slot=far_future_slot,
         shard_count=shard_count,
         latest_block_roots_length=latest_block_roots_length,
         epoch_length=epoch_length,
         target_committee_size=target_committee_size,
         max_deposit=max_deposit,
-        zero_balance_validator_ttl=zero_balance_validator_ttl,
-        collective_penalty_calculation_period=collective_penalty_calculation_period,
-        whistleblower_reward_quotient=whistleblower_reward_quotient,
+        latest_penalized_exit_length=latest_penalized_exit_length,
         latest_randao_mixes_length=latest_randao_mixes_length,
+        entry_exit_delay=entry_exit_delay,
     )
 
-    assert state.slot == initial_slot_number
+    assert state.slot == genesis_slot
     assert len(state.validator_registry) == validator_count

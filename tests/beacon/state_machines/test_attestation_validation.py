@@ -225,17 +225,16 @@ def test_validate_serenity_attestation_shard_block_root(sample_attestation_data_
 @given(random=st.randoms())
 @pytest.mark.parametrize(
     (
-        'num_validators,'
         'epoch_length,'
         'target_committee_size,'
         'shard_count,'
         'is_valid,'
     ),
     [
-        (10, 2, 2, 2, True),
-        (40, 4, 3, 5, True),
-        (20, 5, 3, 2, True),
-        (20, 5, 3, 2, False),
+        (2, 2, 2, True),
+        (4, 3, 5, True),
+        (5, 3, 2, True),
+        (5, 3, 2, False),
     ],
 )
 def test_validate_serenity_attestation_aggregate_signature(genesis_state,

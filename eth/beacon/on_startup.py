@@ -16,16 +16,12 @@ from eth.constants import (
 from eth.beacon.constants import (
     EMPTY_SIGNATURE,
 )
-from eth.beacon.enums import (
-    ValidatorStatusCode,
-)
 from eth.beacon.deposit_helpers import (
     process_deposit,
 )
 from eth.beacon.helpers import (
-    get_active_validator_indices,
     get_effective_balance,
-    get_new_shuffling,
+    get_shuffling,
 )
 from eth.beacon.types.blocks import (
     BaseBeaconBlock,
@@ -35,18 +31,15 @@ from eth.beacon.types.crosslink_records import CrosslinkRecord
 from eth.beacon.types.deposits import Deposit
 from eth.beacon.types.fork_data import ForkData
 from eth.beacon.types.states import BeaconState
-from eth.beacon._utils.random import (
-    shuffle,
-    split,
-)
+
 from eth.beacon.validator_status_helpers import (
-    update_validator_status,
+    activate_validator,
 )
 
 
-def get_genesis_block(startup_state_root: Hash32, initial_slot_number: int) -> BaseBeaconBlock:
+def get_genesis_block(startup_state_root: Hash32, genesis_slot: int) -> BaseBeaconBlock:
     return BaseBeaconBlock(
-        slot=initial_slot_number,
+        slot=genesis_slot,
         parent_root=ZERO_HASH32,
         state_root=startup_state_root,
         randao_reveal=ZERO_HASH32,
@@ -66,31 +59,31 @@ def get_initial_beacon_state(*,
                              initial_validator_deposits: Sequence[Deposit],
                              genesis_time: int,
                              processed_pow_receipt_root: Hash32,
-                             initial_slot_number: int,
-                             initial_fork_version: int,
+                             genesis_slot: int,
+                             genesis_fork_version: int,
+                             far_future_slot,
                              shard_count: int,
                              latest_block_roots_length: int,
                              epoch_length: int,
                              target_committee_size: int,
                              max_deposit: int,
-                             zero_balance_validator_ttl: int,
-                             collective_penalty_calculation_period: int,
-                             whistleblower_reward_quotient: int,
-                             latest_randao_mixes_length: int) -> BeaconState:
+                             latest_penalized_exit_length: int,
+                             latest_randao_mixes_length: int,
+                             entry_exit_delay: int) -> BeaconState:
     state = BeaconState(
         # Misc
-        slot=initial_slot_number,
+        slot=genesis_slot,
         genesis_time=genesis_time,
         fork_data=ForkData(
-            pre_fork_version=initial_fork_version,
-            post_fork_version=initial_fork_version,
-            fork_slot=initial_slot_number,
+            pre_fork_version=genesis_fork_version,
+            post_fork_version=genesis_fork_version,
+            fork_slot=genesis_slot,
         ),
 
         # Validator registry
         validator_registry=(),
         validator_balances=(),
-        validator_registry_latest_change_slot=initial_slot_number,
+        validator_registry_latest_change_slot=genesis_slot,
         validator_registry_exit_count=0,
         validator_registry_delta_chain_tip=ZERO_HASH32,
 
@@ -104,20 +97,20 @@ def get_initial_beacon_state(*,
         persistent_committee_reassignments=(),
 
         # Finality
-        previous_justified_slot=initial_slot_number,
-        justified_slot=initial_slot_number,
+        previous_justified_slot=genesis_slot,
+        justified_slot=genesis_slot,
         justification_bitfield=0,
-        finalized_slot=initial_slot_number,
+        finalized_slot=genesis_slot,
 
         # Recent state
         latest_crosslinks=tuple([
-            CrosslinkRecord(slot=initial_slot_number, shard_block_root=ZERO_HASH32)
+            CrosslinkRecord(slot=genesis_slot, shard_block_root=ZERO_HASH32)
             for _ in range(shard_count)
         ]),
         latest_block_roots=tuple(ZERO_HASH32 for _ in range(latest_block_roots_length)),
         latest_penalized_exit_balances=tuple(
             0
-            for _ in range(collective_penalty_calculation_period)
+            for _ in range(latest_penalized_exit_length)
         ),
         latest_attestations=(),
         batched_block_roots=(),
@@ -127,53 +120,53 @@ def get_initial_beacon_state(*,
         candidate_pow_receipt_roots=(),
     )
 
-    # handle initial deposits and activations
+    # Process initial deposits
     for deposit in initial_validator_deposits:
-        state, validator_index = process_deposit(
+        state = process_deposit(
             state=state,
             pubkey=deposit.deposit_data.deposit_input.pubkey,
-            deposit=deposit.deposit_data.value,
+            amount=deposit.deposit_data.amount,
             proof_of_possession=deposit.deposit_data.deposit_input.proof_of_possession,
             withdrawal_credentials=deposit.deposit_data.deposit_input.withdrawal_credentials,
             randao_commitment=deposit.deposit_data.deposit_input.randao_commitment,
-            zero_balance_validator_ttl=zero_balance_validator_ttl,
+            far_future_slot=far_future_slot,
         )
-        # TODO: BeaconState.validator_balances
+
+    for validator_index, _ in enumerate(state.validator_registry):
         is_max_deposit = get_effective_balance(
             state.validator_balances,
             validator_index,
             max_deposit,
         ) == max_deposit * denoms.gwei
         if is_max_deposit:
-            state = update_validator_status(
-                state=state,
-                index=validator_index,
-                new_status=ValidatorStatusCode.ACTIVE,
-                collective_penalty_calculation_period=collective_penalty_calculation_period,
-                whistleblower_reward_quotient=whistleblower_reward_quotient,
-                epoch_length=epoch_length,
-                max_deposit=max_deposit,
+            state = activate_validator(
+                state,
+                validator_index,
+                genesis=True,
+                genesis_slot=genesis_slot,
+                entry_exit_delay=entry_exit_delay,
             )
 
     # set initial committee shuffling
-    initial_shuffling = get_new_shuffling(
+    initial_shuffling = get_shuffling(
         seed=ZERO_HASH32,
         validators=state.validator_registry,
         crosslinking_start_shard=0,
+        slot=genesis_slot,
         epoch_length=epoch_length,
         target_committee_size=target_committee_size,
         shard_count=shard_count,
     )
+    print('len(state.validator_registry): ', len(state.validator_registry))
     shard_committees_at_slots = initial_shuffling + initial_shuffling
     state = state.copy(
         shard_committees_at_slots=shard_committees_at_slots,
     )
-
-    # set initial persistent shuffling
-    active_validator_indices = get_active_validator_indices(state.validator_registry)
-    persistent_committees = split(shuffle(active_validator_indices, ZERO_HASH32), shard_count)
-    state = state.copy(
-        persistent_committees=persistent_committees,
-    )
+    print('shard_committees_at_slots: ', state.shard_committees_at_slots)
+    for shard_committees in state.shard_committees_at_slots:
+        print('  len(shard_committees)', len(shard_committees))
+        for shard_committee in shard_committees:
+            print('  shard_committee.shard', shard_committee.shard)
+            print('  len(shard_committee.committee)', len(shard_committee.committee))
 
     return state
