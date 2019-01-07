@@ -4,23 +4,13 @@ from eth_typing import (
 import rlp
 
 from eth.beacon.enums import (
-    ValidatorStatusCode,
+    ValidatorStatusFlags,
 )
 from eth.rlp.sedes import (
     uint64,
     uint384,
     hash32,
 )
-
-
-VALIDATOR_RECORD_ACTIVE_STATUSES = {
-    ValidatorStatusCode.ACTIVE,
-    ValidatorStatusCode.ACTIVE_PENDING_EXIT,
-}
-VALIDATOR_RECORD_EXITED_STATUSES = {
-    ValidatorStatusCode.EXITED_WITH_PENALTY,
-    ValidatorStatusCode.EXITED_WITHOUT_PENALTY,
-}
 
 
 class ValidatorRecord(rlp.Serializable):
@@ -36,12 +26,18 @@ class ValidatorRecord(rlp.Serializable):
         ('randao_commitment', hash32),
         # Slot the proposer has skipped (ie. layers of RANDAO expected)
         ('randao_layers', uint64),
-        # Status code
-        ('status', uint64),
-        # Slot when validator last changed status (or 0)
-        ('latest_status_change_slot', uint64),
-        # Sequence number when validator exited (or 0)
+        # Slot when validator activated
+        ('activation_slot', uint64),
+        # Slot when validator exited
+        ('exit_slot', uint64),
+        # Slot when validator withdrew
+        ('withdrawal_slot', uint64),
+        # Slot when validator was penalized
+        ('penalized_slot', uint64),
+        # Exit counter when validator exited
         ('exit_count', uint64),
+        # Status flags
+        ('status_flags', uint64),
     ]
 
     def __init__(self,
@@ -49,39 +45,37 @@ class ValidatorRecord(rlp.Serializable):
                  withdrawal_credentials: Hash32,
                  randao_commitment: Hash32,
                  randao_layers: int,
-                 status: int,
-                 latest_status_change_slot: int,
-                 exit_count: int) -> None:
+                 activation_slot: int,
+                 exit_slot: int,
+                 withdrawal_slot: int,
+                 penalized_slot: int,
+                 exit_count: int,
+                 status_flags: int) -> None:
         super().__init__(
             pubkey=pubkey,
             withdrawal_credentials=withdrawal_credentials,
             randao_commitment=randao_commitment,
             randao_layers=randao_layers,
-            status=status,
-            latest_status_change_slot=latest_status_change_slot,
+            activation_slot=activation_slot,
+            exit_slot=exit_slot,
+            withdrawal_slot=withdrawal_slot,
+            penalized_slot=penalized_slot,
             exit_count=exit_count,
+            status_flags=status_flags,
         )
 
-    @property
-    def is_active(self) -> bool:
+    def is_active(self, slot: int) -> bool:
         """
         Return ``True`` if the validator is active.
         """
-        return self.status in VALIDATOR_RECORD_ACTIVE_STATUSES
-
-    @property
-    def is_exited(self) -> bool:
-        """
-        Return ``True`` if the validator is exited.
-        """
-        return self.status in VALIDATOR_RECORD_EXITED_STATUSES
+        return self.activation_slot <= slot < self.exit_slot
 
     @classmethod
     def get_pending_validator(cls,
                               pubkey: int,
                               withdrawal_credentials: Hash32,
                               randao_commitment: Hash32,
-                              latest_status_change_slot: int) -> 'ValidatorRecord':
+                              far_future_slot: int) -> 'ValidatorRecord':
         """
         Return a new pending ``ValidatorRecord`` with the given fields.
         """
@@ -90,7 +84,10 @@ class ValidatorRecord(rlp.Serializable):
             withdrawal_credentials=withdrawal_credentials,
             randao_commitment=randao_commitment,
             randao_layers=0,
-            status=ValidatorStatusCode.PENDING_ACTIVATION,
-            latest_status_change_slot=latest_status_change_slot,
+            activation_slot=far_future_slot,
+            exit_slot=far_future_slot,
+            withdrawal_slot=far_future_slot,
+            penalized_slot=far_future_slot,
             exit_count=0,
+            status_flags=0,
         )

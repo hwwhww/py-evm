@@ -22,18 +22,21 @@ class ValidatorRegistryDeltaBlock(rlp.Serializable):
         ('latest_registry_delta_root', hash32),
         ('validator_index', uint24),
         ('pubkey', uint384),
-        ('flag', uint64)
+        ('slot', uint64),
+        ('flag', uint64),
     ]
 
     def __init__(self,
                  latest_registry_delta_root: Hash32,
                  validator_index: int,
                  pubkey: int,
+                 slot: int,
                  flag: int) -> None:
         super().__init__(
             latest_registry_delta_root=latest_registry_delta_root,
             validator_index=validator_index,
             pubkey=pubkey,
+            slot=slot,
             flag=flag,
         )
 

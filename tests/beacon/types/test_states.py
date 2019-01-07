@@ -23,12 +23,12 @@ def test_defaults(sample_beacon_state_params):
     assert state.validator_registry_latest_change_slot == sample_beacon_state_params['validator_registry_latest_change_slot']  # noqa: E501
 
 
-def test_validator_registry_and_balances_length(sample_beacon_state_params):
+def test_validator_registry_and_balances_length(sample_beacon_state_params, far_future_slot):
     # When len(BeaconState.validator_registry) != len(BeaconState.validtor_balances)
     with pytest.raises(ValueError):
         BeaconState(**sample_beacon_state_params).copy(
             validator_registry=tuple(
-                mock_validator_record(pubkey)
+                mock_validator_record(pubkey, far_future_slot)
                 for pubkey in range(10)
             ),
         )
@@ -39,11 +39,13 @@ def test_validator_registry_and_balances_length(sample_beacon_state_params):
 )
 def test_num_validators(expected,
                         max_deposit,
-                        empty_beacon_state):
+                        empty_beacon_state,
+                        far_future_slot):
     state = empty_beacon_state.copy(
         validator_registry=tuple(
             mock_validator_record(
                 pubkey,
+                far_future_slot,
             )
             for pubkey in range(expected)
         ),
@@ -85,9 +87,13 @@ def test_hash(sample_beacon_state_params):
         (100, 5566, 100),
     ]
 )
-def test_update_validator(ten_validators_state, validator_index, new_pubkey, new_balance):
+def test_update_validator(ten_validators_state,
+                          validator_index,
+                          new_pubkey,
+                          new_balance,
+                          far_future_slot):
     state = ten_validators_state
-    validator = mock_validator_record(new_pubkey)
+    validator = mock_validator_record(new_pubkey, far_future_slot)
 
     if validator_index < state.num_validators:
         result_state = state.update_validator(

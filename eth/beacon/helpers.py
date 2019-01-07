@@ -134,13 +134,14 @@ def get_shard_committees_at_slot(state: 'BeaconState',
     )
 
 
-def get_active_validator_indices(validators: Sequence['ValidatorRecord']) -> Tuple[int, ...]:
+def get_active_validator_indices(validators: Sequence['ValidatorRecord'],
+                                 slot: int) -> Tuple[int, ...]:
     """
     Get indices of active validators from ``validators``.
     """
     return tuple(
         i for i, v in enumerate(validators)
-        if v.is_active
+        if v.is_active(slot)
     )
 
 
@@ -165,13 +166,14 @@ def _get_shards_committees_for_shard_indices(
 
 
 @to_tuple
-def get_new_shuffling(*,
-                      seed: Hash32,
-                      validators: Sequence['ValidatorRecord'],
-                      crosslinking_start_shard: int,
-                      epoch_length: int,
-                      target_committee_size: int,
-                      shard_count: int) -> Iterable[Iterable[ShardCommittee]]:
+def get_shuffling(*,
+                  seed: Hash32,
+                  validators: Sequence['ValidatorRecord'],
+                  crosslinking_start_shard: int,
+                  slot: int,
+                  epoch_length: int,
+                  target_committee_size: int,
+                  shard_count: int) -> Iterable[Iterable[ShardCommittee]]:
     """
     Return shuffled ``shard_committee_for_slots`` (``[[ShardCommittee]]``) of
     the given active ``validators`` using ``seed`` as entropy.
@@ -214,7 +216,7 @@ def get_new_shuffling(*,
                 ],
             ]
     """
-    active_validators = get_active_validator_indices(validators)
+    active_validators = get_active_validator_indices(validators, slot)
     active_validators_size = len(active_validators)
     committees_per_slot = clamp(
         1,

@@ -14,7 +14,6 @@ from eth_utils import (
 )
 
 from eth.beacon.enums import (
-    ValidatorStatusCode,
     SignatureDomain,
 )
 from eth.beacon.types.attestation_data import (
@@ -35,7 +34,7 @@ from eth.beacon.helpers import (
     get_effective_balance,
     get_domain,
     get_fork_version,
-    get_new_shuffling,
+    get_shuffling,
     _get_shard_committees_at_slot,
     get_block_committees_info,
     get_pubkey_for_indices,
@@ -281,16 +280,21 @@ def test_get_shard_committees_at_slot(
         (1000, 20, 10, 100),
         (100, 50, 10, 10),
         (20, 10, 3, 10),  # active_validators_size < epoch_length * target_committee_size
+        # TODO: other slot cases
     ],
 )
-def test_get_new_shuffling_is_complete(genesis_validators,
-                                       epoch_length,
-                                       target_committee_size,
-                                       shard_count):
-    shuffling = get_new_shuffling(
+def test_get_shuffling_is_complete(activated_genesis_validators,
+                                   epoch_length,
+                                   target_committee_size,
+                                   shard_count):
+    print('activated_genesis_validators')
+    for a in activated_genesis_validators:
+        print('a.activation_slot', a.activation_slot)
+    shuffling = get_shuffling(
         seed=b'\x35' * 32,
-        validators=genesis_validators,
+        validators=activated_genesis_validators,
         crosslinking_start_shard=0,
+        slot=0,
         epoch_length=epoch_length,
         target_committee_size=target_committee_size,
         shard_count=shard_count,
@@ -305,7 +309,7 @@ def test_get_new_shuffling_is_complete(genesis_validators,
             for validator_index in shard_committee.committee:
                 validators.add(validator_index)
 
-    assert len(validators) == len(genesis_validators)
+    assert len(validators) == len(activated_genesis_validators)
 
 
 @pytest.mark.parametrize(
@@ -321,14 +325,15 @@ def test_get_new_shuffling_is_complete(genesis_validators,
         (20, 10, 3, 10),
     ],
 )
-def test_get_new_shuffling_handles_shard_wrap(genesis_validators,
-                                              epoch_length,
-                                              target_committee_size,
-                                              shard_count):
-    shuffling = get_new_shuffling(
+def test_get_shuffling_handles_shard_wrap(genesis_validators,
+                                          epoch_length,
+                                          target_committee_size,
+                                          shard_count):
+    shuffling = get_shuffling(
         seed=b'\x35' * 32,
         validators=genesis_validators,
         crosslinking_start_shard=shard_count - 1,
+        slot=0,
         epoch_length=epoch_length,
         target_committee_size=target_committee_size,
         shard_count=shard_count,
@@ -474,31 +479,25 @@ def test_get_beacon_proposer_index(
             )
 
 
-def test_get_active_validator_indices(sample_validator_record_params):
+def test_get_active_validator_indices(sample_validator_record_params, far_future_slot):
+    current_slot = 1
     # 3 validators are ACTIVE
     validators = [
         ValidatorRecord(
             **sample_validator_record_params,
         ).copy(
-            status=ValidatorStatusCode.ACTIVE,
+            activation_slot=0,
+            exit_slot=far_future_slot,
         )
         for i in range(3)
     ]
-    active_validator_indices = get_active_validator_indices(validators)
+    active_validator_indices = get_active_validator_indices(validators, current_slot)
     assert len(active_validator_indices) == 3
 
-    # Make one validator becomes ACTIVE_PENDING_EXIT.
     validators[0] = validators[0].copy(
-        status=ValidatorStatusCode.ACTIVE_PENDING_EXIT,
+        activation_slot=2,  # activation_slot < current_slot
     )
-    active_validator_indices = get_active_validator_indices(validators)
-    assert len(active_validator_indices) == 3
-
-    # Make one validator becomes EXITED_WITHOUT_PENALTY.
-    validators[0] = validators[0].copy(
-        status=ValidatorStatusCode.EXITED_WITHOUT_PENALTY,
-    )
-    active_validator_indices = get_active_validator_indices(validators)
+    active_validator_indices = get_active_validator_indices(validators, current_slot)
     assert len(active_validator_indices) == 2
 
 

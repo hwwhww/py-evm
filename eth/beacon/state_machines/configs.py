@@ -16,10 +16,10 @@ BeaconConfig = NamedTuple(
         ('EJECTION_BALANCE', int),
         ('MAX_BALANCE_CHURN_QUOTIENT', int),
         ('BEACON_CHAIN_SHARD_NUMBER', int),
-        ('BLS_WITHDRAWAL_PREFIX_BYTE', bytes),
         ('MAX_CASPER_VOTES', int),
         ('LATEST_BLOCK_ROOTS_LENGTH', int),
         ('LATEST_RANDAO_MIXES_LENGTH', int),
+        ('LATEST_PENALIZED_EXIT_LENGTH', int),
         # EMPTY_SIGNATURE is defined in constants.py
         # Deposit contract
         ('DEPOSIT_CONTRACT_ADDRESS', Address),
@@ -28,17 +28,19 @@ BeaconConfig = NamedTuple(
         ('MAX_DEPOSIT', int),
         # ZERO_HASH (ZERO_HASH32) is defined in constants.py
         # Initial values
-        ('INITIAL_FORK_VERSION', int),
-        ('INITIAL_SLOT_NUMBER', int),
+        ('GENESIS_FORK_VERSION', int),
+        ('GENESIS_SLOT', int),
+        ('FAR_FUTURE_SLOT', int),
+        ('BLS_WITHDRAWAL_PREFIX_BYTE', bytes),
         # Time parameters
         ('SLOT_DURATION', int),
         ('MIN_ATTESTATION_INCLUSION_DELAY', int),
         ('EPOCH_LENGTH', int),
         ('MIN_VALIDATOR_REGISTRY_CHANGE_INTERVAL', int),
+        ('SEED_LOOKAHEAD', int),
+        ('ENTRY_EXIT_DELAY', int),
         ('POW_RECEIPT_ROOT_VOTING_PERIOD', int),
-        ('SHARD_PERSISTENT_COMMITTEE_CHANGE_PERIOD', int),
-        ('COLLECTIVE_PENALTY_CALCULATION_PERIOD', int),
-        ('ZERO_BALANCE_VALIDATOR_TTL', int),
+        ('MIN_VALIDATOR_WITHDRAWAL_TIME', int),
         # Reward and penalty quotients
         ('BASE_REWARD_QUOTIENT', int),
         ('WHISTLEBLOWER_REWARD_QUOTIENT', int),
