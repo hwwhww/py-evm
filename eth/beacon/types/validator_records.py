@@ -3,9 +3,6 @@ from eth_typing import (
 )
 import rlp
 
-from eth.beacon.enums import (
-    ValidatorStatusFlags,
-)
 from eth.rlp.sedes import (
     uint64,
     uint384,
@@ -92,7 +89,7 @@ class ValidatorRecord(rlp.Serializable):
                               withdrawal_credentials: Hash32,
                               randao_commitment: Hash32,
                               custody_commitment: Hash32,
-                              far_future_slot: int) -> 'ValidatorRecord':
+                              far_future_slot: SlotNumber) -> 'ValidatorRecord':
         """
         Return a new pending ``ValidatorRecord`` with the given fields.
         """

@@ -58,10 +58,11 @@ def sign_proof_of_possession(deposit_input, privkey, domain):
     return bls.sign(deposit_input.root, privkey, domain)
 
 
-def make_deposit_input(pubkey, withdrawal_credentials, randao_commitment):
+def make_deposit_input(pubkey, withdrawal_credentials, randao_commitment, custody_commitment):
     return DepositInput(
         pubkey=pubkey,
         withdrawal_credentials=withdrawal_credentials,
         randao_commitment=randao_commitment,
+        custody_commitment=custody_commitment,
         proof_of_possession=EMPTY_SIGNATURE,
     )

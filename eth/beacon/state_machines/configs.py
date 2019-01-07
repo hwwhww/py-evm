@@ -21,7 +21,7 @@ BeaconConfig = NamedTuple(
         ('TARGET_COMMITTEE_SIZE', int),
         ('EJECTION_BALANCE', Ether),
         ('MAX_BALANCE_CHURN_QUOTIENT', int),
-        ('BEACON_CHAIN_SHARD_NUMBER', int),
+        ('BEACON_CHAIN_SHARD_NUMBER', ShardNumber),
         ('MAX_CASPER_VOTES', int),
         ('LATEST_BLOCK_ROOTS_LENGTH', int),
         ('LATEST_RANDAO_MIXES_LENGTH', int),
@@ -35,8 +35,8 @@ BeaconConfig = NamedTuple(
         # ZERO_HASH (ZERO_HASH32) is defined in constants.py
         # Initial values
         ('GENESIS_FORK_VERSION', int),
-        ('GENESIS_SLOT', int),
-        ('FAR_FUTURE_SLOT', int),
+        ('GENESIS_SLOT', SlotNumber),
+        ('FAR_FUTURE_SLOT', SlotNumber),
         ('BLS_WITHDRAWAL_PREFIX_BYTE', bytes),
         # Time parameters
         ('SLOT_DURATION', Second),

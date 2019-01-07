@@ -56,6 +56,7 @@ def test_get_initial_beacon_state(
         entry_exit_delay):
     withdrawal_credentials = b'\x22' * 32
     randao_commitment = b'\x33' * 32
+    custody_commitment = b'\x44' * 32
     fork_data = ForkData(
         pre_fork_version=genesis_fork_version,
         post_fork_version=genesis_fork_version,
@@ -80,11 +81,13 @@ def test_get_initial_beacon_state(
                     pubkey=pubkeys[i],
                     withdrawal_credentials=withdrawal_credentials,
                     randao_commitment=randao_commitment,
+                    custody_commitment=custody_commitment,
                     proof_of_possession=sign_proof_of_possession(
                         deposit_input=make_deposit_input(
                             pubkey=pubkeys[i],
                             withdrawal_credentials=withdrawal_credentials,
                             randao_commitment=randao_commitment,
+                            custody_commitment=custody_commitment,
                         ),
                         privkey=privkeys[i],
                         domain=domain,

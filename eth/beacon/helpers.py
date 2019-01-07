@@ -30,7 +30,6 @@ from eth.beacon.block_committees_info import (
 )
 from eth.beacon.enums import (
     SignatureDomain,
-    ValidatorRegistryDeltaFlag,
 )
 from eth.beacon.types.shard_committees import (
     ShardCommittee,

@@ -38,7 +38,6 @@ def test_get_pending_validator():
     pubkey = 123
     withdrawal_credentials = b'\x11' * 32
     randao_commitment = b'\x22' * 32
-    latest_status_change_slot = 10
     custody_commitment = b'\x33' * 32
     far_future_slot = 1000
 

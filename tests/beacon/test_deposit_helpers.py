@@ -167,6 +167,7 @@ def test_process_deposit(sample_beacon_state_params,
         proof_of_possession=proof_of_possession,
         withdrawal_credentials=withdrawal_credentials,
         randao_commitment=randao_commitment,
+        custody_commitment=custody_commitment,
         far_future_slot=far_future_slot,
     )
     assert len(result_state.validator_registry) == 2

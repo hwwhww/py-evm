@@ -25,20 +25,28 @@ from eth.beacon.helpers import (
 )
 from eth.beacon.types.blocks import (
     BaseBeaconBlock,
+    BeaconBlock,
     BeaconBlockBody,
 )
 from eth.beacon.types.crosslink_records import CrosslinkRecord
 from eth.beacon.types.deposits import Deposit
 from eth.beacon.types.fork_data import ForkData
 from eth.beacon.types.states import BeaconState
-
+from eth.beacon.typing import (
+    Bitfield,
+    Ether,
+    Gwei,
+    SlotNumber,
+    Timestamp,
+    ValidatorIndex,
+)
 from eth.beacon.validator_status_helpers import (
     activate_validator,
 )
 
 
-def get_genesis_block(startup_state_root: Hash32, genesis_slot: int) -> BaseBeaconBlock:
-    return BaseBeaconBlock(
+def get_genesis_block(startup_state_root: Hash32, genesis_slot: SlotNumber) -> BaseBeaconBlock:
+    return BeaconBlock(
         slot=genesis_slot,
         parent_root=ZERO_HASH32,
         state_root=startup_state_root,
@@ -49,6 +57,9 @@ def get_genesis_block(startup_state_root: Hash32, genesis_slot: int) -> BaseBeac
             proposer_slashings=(),
             casper_slashings=(),
             attestations=(),
+            custody_reseeds=(),
+            custody_challenges=(),
+            custody_responses=(),
             deposits=(),
             exits=(),
         ),
@@ -57,16 +68,16 @@ def get_genesis_block(startup_state_root: Hash32, genesis_slot: int) -> BaseBeac
 
 def get_initial_beacon_state(*,
                              initial_validator_deposits: Sequence[Deposit],
-                             genesis_time: int,
+                             genesis_time: Timestamp,
                              processed_pow_receipt_root: Hash32,
-                             genesis_slot: int,
+                             genesis_slot: SlotNumber,
                              genesis_fork_version: int,
-                             far_future_slot,
+                             far_future_slot: SlotNumber,
                              shard_count: int,
                              latest_block_roots_length: int,
                              epoch_length: int,
                              target_committee_size: int,
-                             max_deposit: int,
+                             max_deposit: Ether,
                              latest_penalized_exit_length: int,
                              latest_randao_mixes_length: int,
                              entry_exit_delay: int) -> BeaconState:
@@ -99,7 +110,7 @@ def get_initial_beacon_state(*,
         # Finality
         previous_justified_slot=genesis_slot,
         justified_slot=genesis_slot,
-        justification_bitfield=0,
+        justification_bitfield=Bitfield(b'\x00'),
         finalized_slot=genesis_slot,
 
         # Recent state
@@ -109,7 +120,7 @@ def get_initial_beacon_state(*,
         ]),
         latest_block_roots=tuple(ZERO_HASH32 for _ in range(latest_block_roots_length)),
         latest_penalized_exit_balances=tuple(
-            0
+            Gwei(0)
             for _ in range(latest_penalized_exit_length)
         ),
         latest_attestations=(),
@@ -129,10 +140,12 @@ def get_initial_beacon_state(*,
             proof_of_possession=deposit.deposit_data.deposit_input.proof_of_possession,
             withdrawal_credentials=deposit.deposit_data.deposit_input.withdrawal_credentials,
             randao_commitment=deposit.deposit_data.deposit_input.randao_commitment,
+            custody_commitment=deposit.deposit_data.deposit_input.custody_commitment,
             far_future_slot=far_future_slot,
         )
 
     for validator_index, _ in enumerate(state.validator_registry):
+        validator_index = ValidatorIndex(validator_index)
         is_max_deposit = get_effective_balance(
             state.validator_balances,
             validator_index,

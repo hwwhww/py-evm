@@ -16,7 +16,7 @@ SERENITY_CONFIG = BeaconConfig(
     TARGET_COMMITTEE_SIZE=2**7,  # (= 128) validators
     EJECTION_BALANCE=Ether(2**4),  # (= 16) ETH
     MAX_BALANCE_CHURN_QUOTIENT=2**5,  # (= 32)
-    BEACON_CHAIN_SHARD_NUMBER=2**64 - 1,
+    BEACON_CHAIN_SHARD_NUMBER=ShardNumber(2**64 - 1),
     MAX_CASPER_VOTES=2**10,  # (= 1,024) votes
     LATEST_BLOCK_ROOTS_LENGTH=2**13,  # (= 8,192) block roots
     LATEST_RANDAO_MIXES_LENGTH=2**13,  # (= 8,192) randao mixes
@@ -28,8 +28,8 @@ SERENITY_CONFIG = BeaconConfig(
     MAX_DEPOSIT=Ether(2**5),  # (= 32) ETH
     # Initial values
     GENESIS_FORK_VERSION=0,
-    GENESIS_SLOT=0,
-    FAR_FUTURE_SLOT=2**63,
+    GENESIS_SLOT=SlotNumber(0),
+    FAR_FUTURE_SLOT=SlotNumber(2**63),
     BLS_WITHDRAWAL_PREFIX_BYTE=b'\x00',
     # Time parameters
     SLOT_DURATION=Second(6),  # seconds

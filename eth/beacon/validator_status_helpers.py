@@ -4,22 +4,29 @@ from typing import (
     Sequence,
 )
 
+from eth.beacon.enums import (
+    ValidatorRegistryDeltaFlag,
+    ValidatorStatusFlags,
+)
 from eth.beacon.helpers import (
     get_beacon_proposer_index,
     get_effective_balance,
 )
 from eth.beacon.types.states import BeaconState
 from eth.beacon.types.validator_registry_delta_block import ValidatorRegistryDeltaBlock
-from eth.beacon.enums import (
-    ValidatorRegistryDeltaFlag,
-    ValidatorStatusFlags,
+from eth.beacon.typing import (
+    Ether,
+    SlotNumber,
+    ValidatorIndex,
 )
 
 
 #
 # Helper for updating tuple item
 #
-def update_tuple_item(tuple_data: Sequence[Any], index: int, new_value: Any) -> Iterable[Any]:
+def update_tuple_item(tuple_data: Sequence[Any],
+                      index: ValidatorIndex,
+                      new_value: Any) -> Iterable[Any]:
     list_data = list(tuple_data)
     list_data[index] = new_value
     return tuple(list_data)
@@ -29,9 +36,9 @@ def update_tuple_item(tuple_data: Sequence[Any], index: int, new_value: Any) -> 
 # State update
 #
 def activate_validator(state: BeaconState,
-                       index: int,
-                       genesis: int,
-                       genesis_slot: int,
+                       index: ValidatorIndex,
+                       genesis: bool,
+                       genesis_slot: SlotNumber,
                        entry_exit_delay: int) -> BeaconState:
     """
     Activate the validator with the given ``index``.
@@ -61,7 +68,7 @@ def activate_validator(state: BeaconState,
 
 
 def initiate_validator_exit(state: BeaconState,
-                            index: int) -> BeaconState:
+                            index: ValidatorIndex) -> BeaconState:
     """
     Initiate exit for the validator with the given ``index``.
     Return the updated state (immutable).
@@ -76,7 +83,7 @@ def initiate_validator_exit(state: BeaconState,
 
 
 def exit_validator(state: BeaconState,
-                   index: int,
+                   index: ValidatorIndex,
                    entry_exit_delay: int) -> BeaconState:
     """
     Exit the validator with the given ``index``.
@@ -115,12 +122,12 @@ def exit_validator(state: BeaconState,
 
 
 def penalize_validator(state: BeaconState,
-                       index: int,
+                       index: ValidatorIndex,
                        epoch_length: int,
                        latest_penalized_exit_length: int,
                        whistleblower_reward_quotient: int,
                        entry_exit_delay: int,
-                       max_deposit: int) -> BeaconState:
+                       max_deposit: Ether) -> BeaconState:
     state = exit_validator(state, index, entry_exit_delay)
     state = _settle_penality_to_validator_and_whistleblower(
         state=state,
@@ -133,7 +140,7 @@ def penalize_validator(state: BeaconState,
     return state
 
 
-def prepare_validator_for_withdrawal(state: BeaconState, index: int) -> BeaconState:
+def prepare_validator_for_withdrawal(state: BeaconState, index: ValidatorIndex) -> BeaconState:
     validator = state.validator_registry[index]
     validator = validator.copy(
         status_flags=validator.status_flags | ValidatorStatusFlags.WITHDRAWABLE
@@ -146,11 +153,11 @@ def prepare_validator_for_withdrawal(state: BeaconState, index: int) -> BeaconSt
 def _settle_penality_to_validator_and_whistleblower(
         *,
         state: BeaconState,
-        validator_index: int,
+        validator_index: ValidatorIndex,
         latest_penalized_exit_length: int,
         whistleblower_reward_quotient: int,
         epoch_length: int,
-        max_deposit: int) -> BeaconState:
+        max_deposit: Ether) -> BeaconState:
     last_penalized_epoch = (state.slot // epoch_length) % latest_penalized_exit_length
     effective_balance = get_effective_balance(
         state.validator_balances,
